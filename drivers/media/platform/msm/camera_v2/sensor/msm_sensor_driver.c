@@ -79,6 +79,120 @@ static struct v4l2_subdev_info msm_sensor_driver_subdev_info[] = {
 	},
 };
 
+#ifdef VENDOR_EDIT
+//jindian.guan@Camera, 2014/04/14, Add proc for sensor state
+#include <linux/proc_fs.h>
+static int sensor_proc_read(char *page, char **start, off_t off, int count,
+   int *eof, void *data)
+{
+	
+	int len = 0;
+
+	if (g_sctrl[0] == NULL)
+	{
+		pr_err("gs_ctrl is NULL \n");
+		return 0;
+	}
+	len = sprintf(page, "%d",g_sctrl[0]->sensor_state);
+	if (len <= off+count)
+		*eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len > count)
+		len = count;
+	if (len < 0)
+		len = 0;
+	return len;
+}
+
+static int sensor_proc_write(struct file *filp, const char __user *buff,
+                        	unsigned long len, void *data)
+{
+
+	return 0;
+}
+static int sensor_proc_read_front(char *page, char **start, off_t off, int count,
+   int *eof, void *data)
+{
+	
+	int len = 0;
+
+	if (g_sctrl[1] == NULL)
+	{
+		pr_err("gs_ctrl is NULL \n");
+		return 0;
+	}
+	len = sprintf(page, "%d",g_sctrl[1]->sensor_state);
+	if (len <= off+count)
+		*eof = 1;
+	*start = page + off;
+	len -= off;
+	if (len > count)
+		len = count;
+	if (len < 0)
+		len = 0;
+	return len;
+}
+
+static int sensor_proc_write_front(struct file *filp, const char __user *buff,
+                        	unsigned long len, void *data)
+{
+
+	return 0;
+}
+static int sensor_proc_init(struct msm_sensor_ctrl_t *sensor_ctl)
+{
+	int ret=0;
+	static int temp=0;
+	struct proc_dir_entry *proc_entry=NULL;
+	if(0==temp)
+	 {
+	   proc_entry= create_proc_entry( "qcom_sensor_state", 0666, NULL);
+
+	   if(proc_entry == NULL)
+	    {
+		  ret = -ENOMEM;
+	  	  pr_err("[%s]: Error! Couldn't create qcom_sensor_state proc entry\n", __func__);
+	    }
+	   else
+	    {	   
+	      g_sctrl[0]=sensor_ctl;
+		  proc_entry->data = sensor_ctl;
+		  proc_entry->read_proc = sensor_proc_read;
+		  proc_entry->write_proc = sensor_proc_write;
+	      temp++;
+		  pr_err("[%s]: create qcom_sensor_state proc success \n", __func__);
+	    }
+	  }
+	else if(1==temp)
+		{
+		proc_entry= create_proc_entry( "qcom_sensor_state_1", 0666, NULL);
+
+	   if(proc_entry == NULL)
+	    {
+		  ret = -ENOMEM;
+	  	  pr_err("[%s]: Error! Couldn't create qcom_sensor_state_1 proc entry\n", __func__);
+	    }
+	   else
+	    {
+	      g_sctrl[1] = sensor_ctl;
+		  proc_entry->data = sensor_ctl;
+		  proc_entry->read_proc = sensor_proc_read_front;
+		  proc_entry->write_proc = sensor_proc_write_front;
+	      temp++;
+		  pr_err("[%s]: create qcom_sensor_state_1 proc success \n", __func__);
+	    }	
+	   }
+	else
+	 	{
+	 	 pr_err("[%s]: temp=%d \n", __func__,temp);
+	 	 return 0;
+	 	}
+
+	return ret;
+}
+#endif /* VENDOR_EDIT */
+
 static int32_t msm_sensor_driver_create_i2c_v4l_subdev
 			(struct msm_sensor_ctrl_t *s_ctrl)
 {
@@ -620,6 +734,10 @@ int32_t msm_sensor_driver_probe(void *setting)
 
 	/*Save sensor info*/
 	s_ctrl->sensordata->cam_slave_info = slave_info;
+#ifdef VENDOR_EDIT
+//jindian.guan@Camera, 2014/04/14, Add proc for sensor state
+      sensor_proc_init(s_ctrl);    
+#endif
 
 	return rc;
 

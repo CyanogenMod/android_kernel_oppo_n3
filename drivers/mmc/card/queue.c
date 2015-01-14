@@ -20,6 +20,11 @@
 #include <linux/mmc/host.h>
 #include "queue.h"
 
+#ifdef VENDOR_EDIT
+/* OPPO 2014-11-06 sjc Add begin for T card problem */
+#include <linux/bitops.h>
+#endif
+
 #define MMC_QUEUE_BOUNCESZ	65536
 
 
@@ -75,12 +80,22 @@ static int mmc_queue_thread(void *d)
 		if (req || mq->mqrq_prev->req) {
 			set_current_state(TASK_RUNNING);
 			mq->issue_fn(mq, req);
+#ifdef VENDOR_EDIT
+/* OPPO 2014-11-06 sjc Modify begin for T card problem */
+			if (test_bit(MMC_QUEUE_NEW_REQUEST, &mq->flags)) {
+				continue; /* fetch again */
+			} else if (test_bit(MMC_QUEUE_URGENT_REQUEST,
+					&mq->flags) && (mq->mqrq_cur->req &&
+					!(mq->mqrq_cur->req->cmd_flags &
+						MMC_REQ_NOREINSERT_MASK))) {
+#else
 			if (mq->flags & MMC_QUEUE_NEW_REQUEST) {
 				continue; /* fetch again */
 			} else if ((mq->flags & MMC_QUEUE_URGENT_REQUEST) &&
 				   (mq->mqrq_cur->req &&
 				!(mq->mqrq_cur->req->cmd_flags &
 				       MMC_REQ_NOREINSERT_MASK))) {
+#endif /*VENDOR_EDIT*/
 				/*
 				 * clean current request when urgent request
 				 * processing in progress and current request is
@@ -474,8 +489,13 @@ int mmc_queue_suspend(struct mmc_queue *mq, int wait)
 	unsigned long flags;
 	int rc = 0;
 
+#ifdef VENDOR_EDIT
+/* OPPO 2014-11-06 sjc Modify begin for T card problem */
+	if (!(test_and_set_bit(MMC_QUEUE_SUSPENDED, &mq->flags))) {
+#else
 	if (!(mq->flags & MMC_QUEUE_SUSPENDED)) {
 		mq->flags |= MMC_QUEUE_SUSPENDED;
+#endif
 
 		spin_lock_irqsave(q->queue_lock, flags);
 		blk_stop_queue(q);
@@ -487,7 +507,12 @@ int mmc_queue_suspend(struct mmc_queue *mq, int wait)
 			 * Failed to take the lock so better to abort the
 			 * suspend because mmcqd thread is processing requests.
 			 */
+#ifdef VENDOR_EDIT
+/* OPPO 2014-11-06 sjc Modify begin for T card problem */
+			clear_bit(MMC_QUEUE_SUSPENDED, &mq->flags);
+#else
 			mq->flags &= ~MMC_QUEUE_SUSPENDED;
+#endif
 			spin_lock_irqsave(q->queue_lock, flags);
 			blk_start_queue(q);
 			spin_unlock_irqrestore(q->queue_lock, flags);
@@ -509,8 +534,13 @@ void mmc_queue_resume(struct mmc_queue *mq)
 	struct request_queue *q = mq->queue;
 	unsigned long flags;
 
+#ifdef VENDOR_EDIT
+/* OPPO 2014-11-06 sjc Modify begin for T card problem */
+	if (test_and_clear_bit(MMC_QUEUE_SUSPENDED, &mq->flags)) {
+#else
 	if (mq->flags & MMC_QUEUE_SUSPENDED) {
 		mq->flags &= ~MMC_QUEUE_SUSPENDED;
+#endif
 
 		up(&mq->thread_sem);
 

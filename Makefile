@@ -380,6 +380,26 @@ KBUILD_AFLAGS_MODULE  := -DMODULE
 KBUILD_CFLAGS_MODULE  := -DMODULE
 KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
 
+#ifdef VENDOR_EDIT
+#jiangyg@OnlineRd.PM, 2013/10/15, add enviroment variant
+KBUILD_CFLAGS +=   -DCONFIG_VENDOR_EDIT -DVENDOR_EDIT
+KBUILD_CPPFLAGS += -DCONFIG_VENDOR_EDIT -DVENDOR_EDIT
+CFLAGS_KERNEL +=   -DCONFIG_VENDOR_EDIT -DVENDOR_EDIT
+CFLAGS_MODULE +=   -DCONFIG_VENDOR_EDIT -DVENDOR_EDIT
+
+ifeq ($(OPPO_BUILD_TYPE),cmcctest)
+KBUILD_CFLAGS += -DOPPO_CMCC_TEST
+endif
+
+ifeq ($(OPPO_BUILD_TYPE),cta)
+KBUILD_CFLAGS += -DOPPO_CTA_TEST
+endif
+
+ifeq ($(OPPO_BUILD_TYPE),cu)
+KBUILD_CFLAGS += -DOPPO_CU_TEST
+endif
+
+#endif /*VENDOR_EDIT*/
 # Read KERNELRELEASE from include/config/kernel.release (if it exists)
 KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
 KERNELVERSION = $(VERSION)$(if $(PATCHLEVEL),.$(PATCHLEVEL)$(if $(SUBLEVEL),.$(SUBLEVEL)))$(EXTRAVERSION)

@@ -362,8 +362,6 @@ static void msm_vfe40_process_reset_irq(struct vfe_device *vfe_dev,
 static void msm_vfe40_process_halt_irq(struct vfe_device *vfe_dev,
 	uint32_t irq_status0, uint32_t irq_status1)
 {
-	if (irq_status1 & (1 << 8))
-		complete(&vfe_dev->halt_complete);
 }
 
 static void msm_vfe40_process_camif_irq(struct vfe_device *vfe_dev,
@@ -591,7 +589,8 @@ static uint32_t msm_vfe40_reset_values[ISP_RST_MAX] =
 static long msm_vfe40_reset_hardware(struct vfe_device *vfe_dev ,
 				enum msm_isp_reset_type reset_type)
 {
-	uint32_t rst_val;
+	uint32_t rst_val, irq_status0;
+	long time;
 	if (reset_type >= ISP_RST_MAX) {
 		pr_err("%s: Error Invalid parameter\n", __func__);
 		reset_type = ISP_RST_HARD;
@@ -599,8 +598,18 @@ static long msm_vfe40_reset_hardware(struct vfe_device *vfe_dev ,
 	rst_val = msm_vfe40_reset_values[reset_type];
 	init_completion(&vfe_dev->reset_complete);
 	msm_camera_io_w_mb(rst_val, vfe_dev->vfe_base + 0xC);
-	return wait_for_completion_timeout(
-		&vfe_dev->reset_complete, msecs_to_jiffies(50));
+	time = wait_for_completion_interruptible_timeout(
+		&vfe_dev->reset_complete, msecs_to_jiffies(500));
+	if (time <= 0) {
+		irq_status0 = msm_camera_io_r(vfe_dev->vfe_base + 0x38);
+		pr_err("%s: IRQ Status 0x%x\n", __func__, irq_status0);
+		if (irq_status0 & (1 << 31))
+			return 1;
+		else
+			return time;
+	} else {
+	    return 1;
+	}
 }
 
 static void msm_vfe40_axi_reload_wm(
@@ -1136,14 +1145,21 @@ static void msm_vfe40_update_ping_pong_addr(
 
 static long msm_vfe40_axi_halt(struct vfe_device *vfe_dev)
 {
-	uint32_t halt_mask;
-	halt_mask = msm_camera_io_r(vfe_dev->vfe_base + 0x2C);
-	halt_mask |= (1 << 8);
-	msm_camera_io_w_mb(halt_mask, vfe_dev->vfe_base + 0x2C);
-	init_completion(&vfe_dev->halt_complete);
+	long rc = 0;
+	uint32_t axi_busy_flag = true;
+	/* Keep only restart mask*/
+	msm_camera_io_w(BIT(31), vfe_dev->vfe_base + 0x28);
+	/* Clear IRQ Status*/
+	msm_camera_io_w(0xFFFFFFFF, vfe_dev->vfe_base + 0x30);
+	msm_camera_io_w(0xFEFFFFFF, vfe_dev->vfe_base + 0x34);
 	msm_camera_io_w_mb(0x1, vfe_dev->vfe_base + 0x2C0);
-	return wait_for_completion_interruptible_timeout(
-		&vfe_dev->halt_complete, msecs_to_jiffies(500));
+	while (axi_busy_flag) {
+		if (msm_camera_io_r(
+			vfe_dev->vfe_base + 0x2E4) & 0x1)
+			axi_busy_flag = false;
+	}
+	msm_camera_io_w_mb(0x0, vfe_dev->vfe_base + 0x2C0);
+	return rc;
 }
 
 static uint32_t msm_vfe40_get_wm_mask(

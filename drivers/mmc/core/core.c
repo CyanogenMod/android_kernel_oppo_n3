@@ -45,6 +45,13 @@
 #include "sd_ops.h"
 #include "sdio_ops.h"
 
+extern void mmc_sd_remove(struct mmc_host *host);
+
+#ifdef VENDOR_EDIT 
+//Zhilong.Zhang@OnlineRd.Driver, 2014/09/19, Add for detect tf card
+#include <linux/gpio.h>
+#endif /* VENDOR_EDIT */
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/mmc.h>
 
@@ -3168,11 +3175,51 @@ int mmc_detect_card_removed(struct mmc_host *host)
 }
 EXPORT_SYMBOL(mmc_detect_card_removed);
 
+#ifndef VENDOR_EDIT 
+//Zhilong.Zhang@OnlineRd.Driver, 2014/09/19, Add for detect tf card
+#if defined CONFIG_OPPO_MSM_14021
+struct _mmc_cd_gpio {
+	unsigned int gpio;
+	char label[0];
+	bool status;
+};
+
+static int mmc_cd_get_tf_status(struct mmc_host *host)
+{
+	int ret = -ENOSYS;
+	struct _mmc_cd_gpio *cd = host->hotplug.handler_priv;
+
+	if (!cd || !gpio_is_valid(cd->gpio))
+		goto out;
+
+	ret = !gpio_get_value_cansleep(cd->gpio) ^
+		!!(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH);
+out:
+	return ret;
+}
+
+extern void removed_tf_card(struct mmc_host *host);
+
+#endif
+#endif /* VENDOR_EDIT */
+
 void mmc_rescan(struct work_struct *work)
 {
 	struct mmc_host *host =
 		container_of(work, struct mmc_host, detect.work);
 	bool extend_wakelock = false;
+#ifndef VENDOR_EDIT 
+//Zhilong.Zhang@OnlineRd.Driver, 2014/09/19, Add for detect tf card
+#if defined CONFIG_OPPO_MSM_14021	
+	int status;
+	status = mmc_cd_get_tf_status(host);
+	
+	//printk(KERN_INFO "mmc_rescan, status = %d, host->bus_dead = %d\n", status, host->bus_dead);
+	if(!status && !host->bus_dead) {
+		mmc_schedule_delayed_work(&host->detect, 2 * HZ);
+	}	
+#endif
+#endif /* VENDOR_EDIT */
 
 	if (host->rescan_disable)
 		return;
@@ -3234,6 +3281,16 @@ void mmc_rescan(struct work_struct *work)
 	mmc_release_host(host);
 	mmc_rpm_release(host, &host->class_dev);
  out:
+#ifndef VENDOR_EDIT 
+//Zhilong.Zhang@OnlineRd.Driver, 2014/09/19, Add for detect tf card
+#if defined CONFIG_OPPO_MSM_14021
+ 	if (mmc_cd_get_tf_status(host) == 0){
+		cancel_delayed_work(&host->detect);
+		if (host && host->card)
+			removed_tf_card(host);
+ 	}
+#endif
+#endif /* VENDOR_EDIT */
 	if (extend_wakelock)
 		wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
 

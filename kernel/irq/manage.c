@@ -1490,6 +1490,7 @@ void irq_set_pending(unsigned int irq)
 	unsigned long flags;
 
 	if (desc) {
+        printk("%s, %d\n", __func__, __LINE__);		         
 		raw_spin_lock_irqsave(&desc->lock, flags);
 		desc->istate |= IRQS_PENDING;
 		raw_spin_unlock_irqrestore(&desc->lock, flags);

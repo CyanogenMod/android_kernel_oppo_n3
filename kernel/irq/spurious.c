@@ -95,6 +95,7 @@ static int try_one_irq(int irq, struct irq_desc *desc, bool force)
 		 * Already running: If it is shared get the other
 		 * CPU to go looking for our mystery interrupt too
 		 */
+        printk("%s, %d\n", __func__, __LINE__);		 
 		desc->istate |= IRQS_PENDING;
 		goto out;
 	}

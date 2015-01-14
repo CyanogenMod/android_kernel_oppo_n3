@@ -68,7 +68,6 @@ struct msm_mdp_interface mdp5 = {
 	.fb_mem_get_iommu_domain = mdss_fb_mem_get_iommu_domain,
 	.panel_register_done = mdss_panel_register_done,
 	.fb_stride = mdss_mdp_fb_stride,
-	.check_dsi_status = mdss_check_dsi_ctrl_status,
 };
 
 #define DEFAULT_TOTAL_RGB_PIPES 3
@@ -326,7 +325,12 @@ static int mdss_mdp_bus_scale_register(struct mdss_data_type *mdata)
 		pr_debug("register bus_hdl=%x\n", mdata->bus_hdl);
 	}
 
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/09/15  Add for qualcomm patch for crash into dump */
 	return mdss_mdp_bus_scale_set_quota(AB_QUOTA, IB_QUOTA);
+#else
+	return mdss_bus_scale_set_quota(MDSS_HW_MDP, AB_QUOTA, IB_QUOTA);
+#endif /*CONFIG_VENDOR_EDIT*/
 }
 
 static void mdss_mdp_bus_scale_unregister(struct mdss_data_type *mdata)
@@ -392,6 +396,32 @@ int mdss_mdp_bus_scale_set_quota(u64 ab_quota, u64 ib_quota)
 	return msm_bus_scale_client_update_request(mdss_res->bus_hdl,
 		new_uc_idx);
 }
+
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/09/15  Add for qualcomm patch for crash into dump */
+int mdss_bus_scale_set_quota(int client, u64 ab_quota, u64 ib_quota)
+{
+	int rc = 0;
+	int i;
+	u64 total_ab = 0;
+	u64 total_ib = 0;
+
+	mutex_lock(&bus_bw_lock);
+
+	mdss_res->ab[client] = ab_quota;
+	mdss_res->ib[client] = ib_quota;
+	for (i = 0; i < MDSS_MAX_HW_BLK; i++) {
+		total_ab += mdss_res->ab[i];
+		total_ib = max(total_ib, mdss_res->ib[i]);
+	}
+
+	rc = mdss_mdp_bus_scale_set_quota(total_ab, total_ib);
+
+	mutex_unlock(&bus_bw_lock);
+
+	return rc;
+}
+#endif /*CONFIG_VENDOR_EDIT*/
 
 static inline u32 mdss_mdp_irq_mask(u32 intr_type, u32 intf_num)
 {
@@ -617,6 +647,8 @@ unsigned long mdss_mdp_get_clk_rate(u32 clk_idx)
 	return clk_rate;
 }
 
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
 int mdss_iommu_ctrl(int enable)
 {
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
@@ -647,6 +679,42 @@ int mdss_iommu_ctrl(int enable)
 	else
 		return mdata->iommu_ref_cnt;
 }
+#else
+int mdss_iommu_ctrl(int enable)
+{
+	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
+	int rc = 0;
+
+	mutex_lock(&mdp_iommu_lock);
+	pr_debug("%pS: enable %d mdata->iommu_ref_cnt %d\n",
+		__builtin_return_address(0), enable, mdata->iommu_ref_cnt);
+
+	if (enable) {
+
+		if (mdata->iommu_ref_cnt == 0) {
+			mdss_bus_scale_set_quota(MDSS_HW_IOMMU, SZ_1M, SZ_1M);
+			rc = mdss_iommu_attach(mdata);
+		}
+		mdata->iommu_ref_cnt++;
+	} else {
+		if (mdata->iommu_ref_cnt) {
+			mdata->iommu_ref_cnt--;
+			if (mdata->iommu_ref_cnt == 0) {
+				rc = mdss_iommu_dettach(mdata);
+				mdss_bus_scale_set_quota(MDSS_HW_IOMMU, 0, 0);
+			}
+		} else {
+			pr_err("unbalanced iommu ref\n");
+		}
+	}
+	mutex_unlock(&mdp_iommu_lock);
+
+	if (IS_ERR_VALUE(rc))
+		return rc;
+	else
+		return mdata->iommu_ref_cnt;
+}
+#endif /*CONFIG_VENDOR_EDIT*/
 
 /**
  * mdss_bus_bandwidth_ctrl() -- place bus bandwidth request
@@ -655,7 +723,7 @@ int mdss_iommu_ctrl(int enable)
  * Function place bus bandwidth request to allocate saved bandwidth
  * if enabled or free bus bandwidth allocation if disabled.
  * Bus bandwidth is required by mdp.For dsi, it only requires to send
- * dcs coammnd. It returns error if bandwidth request fails.
+ * dcs coammnd.
  */
 void mdss_bus_bandwidth_ctrl(int enable)
 {
@@ -685,11 +753,20 @@ void mdss_bus_bandwidth_ctrl(int enable)
 		if (!enable) {
 			msm_bus_scale_client_update_request(
 				mdata->bus_hdl, 0);
+                    #ifndef VENDOR_EDIT
+                    /* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+			mdss_iommu_dettach(mdata);
+                    #endif /*CONFIG_VENDOR_EDIT*/
 			pm_runtime_put(&mdata->pdev->dev);
 		} else {
 			pm_runtime_get_sync(&mdata->pdev->dev);
 			msm_bus_scale_client_update_request(
 				mdata->bus_hdl, mdata->curr_bw_uc_idx);
+                    #ifndef VENDOR_EDIT
+                    /* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+			if (!mdata->handoff_pending)
+				mdss_iommu_attach(mdata);
+                     #endif /*CONFIG_VENDOR_EDIT*/
 		}
 	}
 
@@ -815,11 +892,48 @@ static int mdss_mdp_irq_clk_setup(struct mdss_data_type *mdata)
 	return 0;
 }
 
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+int mdss_iommu_attach(struct mdss_data_type *mdata)
+{
+	struct iommu_domain *domain;
+	struct mdss_iommu_map_type *iomap;
+	int i;
+
+	mutex_lock(&mdp_iommu_lock);
+	MDSS_XLOG(mdata->iommu_attached);
+
+	if (mdata->iommu_attached) {
+		pr_debug("mdp iommu already attached\n");
+		mutex_unlock(&mdp_iommu_lock);
+		return 0;
+	}
+
+	for (i = 0; i < MDSS_IOMMU_MAX_DOMAIN; i++) {
+		iomap = mdata->iommu_map + i;
+
+		domain = msm_get_iommu_domain(iomap->domain_idx);
+		if (!domain) {
+			WARN(1, "could not attach iommu client %s to ctx %s\n",
+				iomap->client_name, iomap->ctx_name);
+			continue;
+		}
+		iommu_attach_device(domain, iomap->ctx);
+	}
+
+	mdata->iommu_attached = true;
+	mutex_unlock(&mdp_iommu_lock);
+
+	return 0;
+}
+#else
 int mdss_iommu_attach(struct mdss_data_type *mdata)
 {
 	struct iommu_domain *domain;
 	struct mdss_iommu_map_type *iomap;
 	int i, rc = 0;
+
+	MDSS_XLOG(mdata->iommu_attached);
 
 	if (mdata->iommu_attached) {
 		pr_debug("mdp iommu already attached\n");
@@ -851,6 +965,7 @@ int mdss_iommu_attach(struct mdss_data_type *mdata)
 end:
 	return rc;
 }
+#endif /*CONFIG_VENDOR_EDIT*/
 
 int mdss_iommu_dettach(struct mdss_data_type *mdata)
 {
@@ -858,8 +973,18 @@ int mdss_iommu_dettach(struct mdss_data_type *mdata)
 	struct mdss_iommu_map_type *iomap;
 	int i;
 
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+	mutex_lock(&mdp_iommu_lock);
+#endif /*CONFIG_VENDOR_EDIT*/
+	MDSS_XLOG(mdata->iommu_attached);
+
 	if (!mdata->iommu_attached) {
 		pr_debug("mdp iommu already dettached\n");
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+		mutex_unlock(&mdp_iommu_lock);
+#endif /*CONFIG_VENDOR_EDIT*/
 		return 0;
 	}
 
@@ -876,6 +1001,10 @@ int mdss_iommu_dettach(struct mdss_data_type *mdata)
 	}
 
 	mdata->iommu_attached = false;
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+	mutex_unlock(&mdp_iommu_lock);
+#endif /*CONFIG_VENDOR_EDIT*/
 
 	return 0;
 }
@@ -2543,6 +2672,10 @@ static void mdss_mdp_footswitch_ctrl(struct mdss_data_type *mdata, int on)
 		mdata->fs_ena = true;
 	} else {
 		pr_debug("Disable MDP FS\n");
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+		mdss_iommu_dettach(mdata);
+#endif /*CONFIG_VENDOR_EDIT*/
 		if (mdata->fs_ena) {
 			regulator_disable(mdata->fs);
 			mdss_mdp_cx_ctrl(mdata, false);

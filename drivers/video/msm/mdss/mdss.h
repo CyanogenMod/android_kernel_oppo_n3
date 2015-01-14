@@ -94,6 +94,21 @@ struct mdss_prefill_data {
 	u32 fbc_lines;
 };
 
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/09/15  Add for qualcomm patch for crash into dump */
+enum mdss_hw_index {
+	MDSS_HW_MDP,
+	MDSS_HW_DSI0,
+	MDSS_HW_DSI1,
+	MDSS_HW_HDMI,
+	MDSS_HW_EDP,
+	/*liuyan 2014-11-24 add for iommu tlb patch*/
+	MDSS_HW_IOMMU,
+	/*liuyan add end*/
+	MDSS_MAX_HW_BLK
+};
+#endif /*CONFIG_VENDOR_EDIT*/
+
 struct mdss_data_type {
 	u32 mdp_rev;
 	struct clk *mdp_clk[MDSS_MAX_CLK];
@@ -194,10 +209,18 @@ struct mdss_data_type {
 
 	int handoff_pending;
 	struct mdss_prefill_data prefill_data;
+
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/09/15  Add for qualcomm patch for crash into dump */
 	int iommu_ref_cnt;
+	u64 ab[MDSS_MAX_HW_BLK];
+	u64 ib[MDSS_MAX_HW_BLK];
+#endif /*CONFIG_VENDOR_EDIT*/
 };
 extern struct mdss_data_type *mdss_res;
 
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/09/15  Add for qualcomm patch for crash into dump */
 enum mdss_hw_index {
 	MDSS_HW_MDP,
 	MDSS_HW_DSI0,
@@ -206,6 +229,7 @@ enum mdss_hw_index {
 	MDSS_HW_EDP,
 	MDSS_MAX_HW_BLK
 };
+#endif /*CONFIG_VENDOR_EDIT*/
 
 struct mdss_hw {
 	u32 hw_ndx;
@@ -217,8 +241,15 @@ int mdss_register_irq(struct mdss_hw *hw);
 void mdss_enable_irq(struct mdss_hw *hw);
 void mdss_disable_irq(struct mdss_hw *hw);
 void mdss_disable_irq_nosync(struct mdss_hw *hw);
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/09/15  Add for qualcomm patch for crash into dump */
+int mdss_bus_scale_set_quota(int client, u64 ab_quota, u64 ib_quota);
+#endif /*CONFIG_VENDOR_EDIT*/
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
 void mdss_bus_bandwidth_ctrl(int enable);
 int mdss_iommu_ctrl(int enable);
+#endif /*CONFIG_VENDOR_EDIT*/
 
 static inline struct ion_client *mdss_get_ionclient(void)
 {

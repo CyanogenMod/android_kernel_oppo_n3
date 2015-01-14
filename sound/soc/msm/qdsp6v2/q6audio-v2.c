@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -82,6 +82,9 @@ int q6audio_get_port_index(u16 port_id)
 	}
 }
 
+#ifdef VENDOR_EDIT
+/*OPPO 2014-10-27 yuanyan@PhoneSW.Driver add begin,fix sound delay too long when changing ringtone with headset pluged (PATCH)*/
+#ifdef CONFIG_OPPO_MSM_14021
 int q6audio_get_port_id_from_index(u16 port_idx)
 {
 	switch (port_idx) {
@@ -138,11 +141,15 @@ int q6audio_get_port_id_from_index(u16 port_idx)
 		return AFE_PORT_ID_TERTIARY_MI2S_RX;
 	case IDX_AFE_PORT_ID_TERTIARY_MI2S_TX:
 		return AFE_PORT_ID_TERTIARY_MI2S_TX;
+	case AFE_PORT_ID_SECONDARY_MI2S_RX_VIBRA:
+		return IDX_AFE_PORT_ID_SECONDARY_MI2S_RX_VIBRA;
 
 	default: return -EINVAL;
 	}
 }
-
+#endif
+/*OPPO 2014-10-27 yuanyan@PhoneSW.Driver Add end*/
+#endif
 int q6audio_get_port_id(u16 port_id)
 {
 	switch (port_id) {

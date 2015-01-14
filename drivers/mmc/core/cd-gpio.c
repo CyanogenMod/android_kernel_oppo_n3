@@ -16,7 +16,12 @@
 #include <linux/mmc/host.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#ifdef CONFIG_OPPO_MSM_14021 
+//Zhilong.Zhang@OnlineRd.Driver, 2014/09/24, Add for wakeup the phone when insert or pull out the micro sd card
+#include <linux/pcb_version.h>
+#endif /* VENDOR_EDIT */
 
+int TF_CARD_STATUS=1;
 struct mmc_cd_gpio {
 	unsigned int gpio;
 	char label[0];
@@ -43,7 +48,7 @@ static irqreturn_t mmc_cd_gpio_irqt(int irq, void *dev_id)
 	struct mmc_cd_gpio *cd = host->hotplug.handler_priv;
 	int status;
 
-	status = mmc_cd_get_status(host);
+	TF_CARD_STATUS = status = mmc_cd_get_status(host);
 	if (unlikely(status < 0))
 		goto out;
 
@@ -53,6 +58,11 @@ static irqreturn_t mmc_cd_gpio_irqt(int irq, void *dev_id)
 				(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
 				"HIGH" : "LOW");
 		cd->status = status;
+
+#ifdef VENDOR_EDIT
+        //Lycan.Wang@Prd.BasicDrv, 2014-07-10 Add for retry 5 times when new sdcard init error
+        host->detect_change_retry = 5;
+#endif /* VENDOR_EDIT */
 
 		/* Schedule a card detection after a debounce timeout */
 		mmc_detect_change(host, msecs_to_jiffies(100));
@@ -97,6 +107,19 @@ int mmc_cd_gpio_request(struct mmc_host *host, unsigned int gpio)
 	if (ret < 0)
 		goto eirqreq;
 
+#ifdef CONFIG_OPPO_MSM_14021 
+//Zhilong.Zhang@OnlineRd.Driver, 2014/09/24, Add for wakeup the phone when insert or pull out the micro sd card
+#if 0
+	if (get_pcb_version() >= HW_VERSION__32) {
+		ret = enable_irq_wake(irq);
+		if(ret < 0)
+		{
+			printk(KERN_ERR "%s, enable_irq_wake %d\n", __func__, ret);
+		}
+	}
+#endif	
+#endif /* VENDOR_EDIT */	
+
 	return 0;
 
 eirqreq:
@@ -113,6 +136,12 @@ void mmc_cd_gpio_free(struct mmc_host *host)
 
 	if (!cd || !gpio_is_valid(cd->gpio))
 		return;
+
+#ifdef CONFIG_OPPO_MSM_14021 
+//Zhilong.Zhang@OnlineRd.Driver, 2014/09/24, Add for wakeup the phone when insert or pull out the micro sd card
+	//if (get_pcb_version() >= HW_VERSION__32)
+		//disable_irq_wake(host->hotplug.irq);
+#endif /* VENDOR_EDIT */
 
 	free_irq(host->hotplug.irq, host);
 	gpio_free(cd->gpio);

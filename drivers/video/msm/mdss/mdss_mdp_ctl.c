@@ -31,6 +31,9 @@ static inline u64 fudge_factor(u64 val, u32 numer, u32 denom)
 	do_div(result, denom);
 	return result;
 }
+/* OPPO 2014-02-11 yxq add begin for Find7S */
+#include <linux/pcb_version.h>
+/* OPPO 2014-02-11 yxq add end */
 
 static inline u64 apply_fudge_factor(u64 val,
 	struct mdss_fudge_factor *factor)
@@ -598,6 +601,31 @@ static u32 mdss_mdp_get_vbp_factor_max(struct mdss_mdp_ctl *ctl)
 	return vbp_max;
 }
 
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/07/28  Add for video flash patch */
+static bool mdss_mdp_video_mode_intf_connected(struct mdss_mdp_ctl *ctl)
+{
+	int i;
+	struct mdss_data_type *mdata;
+
+	if (!ctl || !ctl->mdata)
+		return 0;
+
+	mdata = ctl->mdata;
+	for (i = 0; i < mdata->nctl; i++) {
+		struct mdss_mdp_ctl *ctl = mdata->ctl_off + i;
+
+		if (ctl->is_video_mode && ctl->power_on) {
+			pr_debug("video interface connected ctl:%d\n",
+			ctl->num);
+			return true;
+		}
+	}
+
+	return false;
+}
+#endif /*CONFIG_VENDOR_EDIT*/
+
 static void __mdss_mdp_perf_calc_ctl_helper(struct mdss_mdp_ctl *ctl,
 		struct mdss_mdp_perf_params *perf,
 		struct mdss_mdp_pipe **left_plist, int left_cnt,
@@ -693,7 +721,12 @@ static void mdss_mdp_perf_calc_ctl(struct mdss_mdp_ctl *ctl,
 			left_plist, (left_plist ? MDSS_MDP_MAX_STAGE : 0),
 			right_plist, (right_plist ? MDSS_MDP_MAX_STAGE : 0));
 
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/07/28  Add for video flash patch */
 	if (ctl->is_video_mode) {
+#else
+	if (ctl->is_video_mode || mdss_mdp_video_mode_intf_connected(ctl)) {
+#endif /*CONFIG_VENDOR_EDIT*/
 		if (perf->bw_overlap > perf->bw_prefill)
 			perf->bw_ctl = apply_fudge_factor(perf->bw_ctl,
 				&mdss_res->ib_factor_overlap);
@@ -828,7 +861,12 @@ static inline void mdss_mdp_ctl_perf_update_bus(struct mdss_mdp_ctl *ctl)
 	bus_ib_quota = bw_sum_of_intfs;
 	bus_ab_quota = apply_fudge_factor(bw_sum_of_intfs,
 		&mdss_res->ab_factor);
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/09/15  Add for qualcomm patch crash into dump */
 	mdss_mdp_bus_scale_set_quota(bus_ab_quota, bus_ib_quota);
+#else
+	mdss_bus_scale_set_quota(MDSS_HW_MDP, bus_ab_quota, bus_ib_quota);
+#endif /*CONFIG_VENDOR_EDIT*/
 	pr_debug("ab=%llu ib=%llu\n", bus_ab_quota, bus_ib_quota);
 }
 
@@ -1196,6 +1234,8 @@ int mdss_mdp_wb_mixer_destroy(struct mdss_mdp_mixer *mixer)
 	return 0;
 }
 
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/08/13  Add for iommu patch */
 static inline struct mdss_mdp_ctl *mdss_mdp_get_split_ctl(
 		struct mdss_mdp_ctl *ctl)
 {
@@ -1204,6 +1244,7 @@ static inline struct mdss_mdp_ctl *mdss_mdp_get_split_ctl(
 
 	return NULL;
 }
+#endif /*CONFIG_VENDOR_EDIT*/
 
 int mdss_mdp_ctl_splash_finish(struct mdss_mdp_ctl *ctl, bool handoff)
 {
@@ -1419,6 +1460,11 @@ static int mdss_mdp_ctl_setup_wfd(struct mdss_mdp_ctl *ctl)
 	return 0;
 }
 
+#ifdef VENDOR_EDIT
+/* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/04/15  Add for find7s swap DSI port */
+extern int LCD_id;
+#endif /*VENDOR_EDIT*/
+
 struct mdss_mdp_ctl *mdss_mdp_ctl_init(struct mdss_panel_data *pdata,
 				       struct msm_fb_data_type *mfd)
 {
@@ -1445,19 +1491,49 @@ struct mdss_mdp_ctl *mdss_mdp_ctl_init(struct mdss_panel_data *pdata,
 		break;
 	case MIPI_VIDEO_PANEL:
 		ctl->is_video_mode = true;
+#ifndef VENDOR_EDIT
+/* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/04/15  Modify for find7s swap DSI port */
 		if (pdata->panel_info.pdest == DISPLAY_1)
 			ctl->intf_num = MDSS_MDP_INTF1;
 		else
 			ctl->intf_num = MDSS_MDP_INTF2;
+#else /*VENDOR_EDIT*/
+		if(((get_pcb_version()>=22) && (get_pcb_version()<30)) || LCD_id == 4){
+			if (pdata->panel_info.pdest == DISPLAY_1)
+				ctl->intf_num = MDSS_MDP_INTF2;
+			else
+				ctl->intf_num = MDSS_MDP_INTF1;
+		}else{
+			if (pdata->panel_info.pdest == DISPLAY_1)
+				ctl->intf_num = MDSS_MDP_INTF1;
+			else
+				ctl->intf_num = MDSS_MDP_INTF2;
+		}
+#endif /*VENDOR_EDIT*/
 		ctl->intf_type = MDSS_INTF_DSI;
 		ctl->opmode = MDSS_MDP_CTL_OP_VIDEO_MODE;
 		ctl->start_fnc = mdss_mdp_video_start;
 		break;
 	case MIPI_CMD_PANEL:
+#ifndef VENDOR_EDIT
+/* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/07/30  Modify for find7s cmd panel swap DSI */
 		if (pdata->panel_info.pdest == DISPLAY_1)
 			ctl->intf_num = MDSS_MDP_INTF1;
 		else
 			ctl->intf_num = MDSS_MDP_INTF2;
+#else /*VENDOR_EDIT*/
+		if(((get_pcb_version()>=22) && (get_pcb_version()<30)) || LCD_id == 4){
+			if (pdata->panel_info.pdest == DISPLAY_1)
+				ctl->intf_num = MDSS_MDP_INTF2;
+			else
+				ctl->intf_num = MDSS_MDP_INTF1;
+		}else{
+			if (pdata->panel_info.pdest == DISPLAY_1)
+				ctl->intf_num = MDSS_MDP_INTF1;
+			else
+				ctl->intf_num = MDSS_MDP_INTF2;
+		}
+#endif /*VENDOR_EDIT*/
 		ctl->intf_type = MDSS_INTF_DSI;
 		ctl->opmode = MDSS_MDP_CTL_OP_CMD_MODE;
 		ctl->start_fnc = mdss_mdp_cmd_start;

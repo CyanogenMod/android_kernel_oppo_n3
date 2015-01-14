@@ -65,6 +65,8 @@ void check_irq_resend(struct irq_desc *desc, unsigned int irq)
 	if (desc->istate & IRQS_REPLAY)
 		return;
 	if (desc->istate & IRQS_PENDING) {
+        printk("%s, %d, istate =%d \n", __func__, __LINE__, desc->istate);		
+        
 		desc->istate &= ~IRQS_PENDING;
 		desc->istate |= IRQS_REPLAY;
 

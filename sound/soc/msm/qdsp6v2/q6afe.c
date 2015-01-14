@@ -25,6 +25,7 @@
 
 #include "audio_acdb.h"
 
+
 enum {
 	AFE_RX_CAL,
 	AFE_TX_CAL,
@@ -124,6 +125,7 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 			 data->payload_size);
 	if (data->opcode == AFE_PORT_CMDRSP_GET_PARAM_V2) {
 		u8 *payload = data->payload;
+
 		if ((data->payload_size < sizeof(this_afe.calib_data))
 			|| !payload || (data->token >= AFE_MAX_PORTS)) {
 			pr_err("%s size %d payload %p token %d\n",
@@ -140,6 +142,7 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 		} else
 			atomic_set(&this_afe.state, -1);
 		wake_up(&this_afe.wait[data->token]);
+
 	} else if (data->payload_size) {
 		uint32_t *payload;
 		uint16_t port_id = 0;
@@ -382,6 +385,7 @@ static int afe_apr_send_pkt(void *data, wait_queue_head_t *wait)
 	pr_debug("%s: leave %d\n", __func__, ret);
 	return ret;
 }
+
 
 static void afe_send_cal_block(int32_t path, u16 port_id)
 {
@@ -1314,8 +1318,15 @@ int afe_port_start(u16 port_id, union afe_port_config *afe_config,
 	ret = afe_q6_interface_prepare();
 	if (IS_ERR_VALUE(ret))
 		return ret;
-
-	afe_send_cal(port_id);
+#ifdef CONFIG_OPPO_MSM_14021
+/* xiaojun.lv@PhoneDpt.AudioDrv, 2014/08/13, modify for 14021 auto feedback */
+    if(port_id!=AFE_PORT_ID_SECONDARY_MI2S_TX) 
+    {
+    	afe_send_cal(port_id);
+    }
+#else
+    	afe_send_cal(port_id);
+#endif
 	afe_send_hw_delay(port_id, rate);
 
 	/* Start SW MAD module */

@@ -34,7 +34,6 @@
 
 #define ADM_MAX_COPPS 5
 
-
 /*  Session map node structure.
 *	Immediately following this structure are num_copps
 *	entries of COPP IDs. The COPP IDs are 16 bits, so
@@ -6707,6 +6706,7 @@ struct srs_trumedia_params {
 #define LSM_SESSION_CMD_STOP				(0x00012A87)
 
 #define LSM_SESSION_EVENT_DETECTION_STATUS		(0x00012B00)
+//#define LSM_SESSION_EVENT_DETECTION_STATUS_V2		(0x00012B01) //John.Xu rm this to revert Qcom patch for LSM not work
 
 #define LSM_MODULE_ID_VOICE_WAKEUP			(0x00012C00)
 #define LSM_PARAM_ID_ENDPOINT_DETECT_THRESHOLD		(0x00012C01)
@@ -6716,7 +6716,7 @@ struct srs_trumedia_params {
 #define LSM_PARAM_ID_KEYWORD_DETECT_SENSITIVITY		(0x00012C05)
 #define LSM_PARAM_ID_USER_DETECT_SENSITIVITY		(0x00012C06)
 #define LSM_PARAM_ID_FEATURE_COMPENSATION_DATA		(0x00012C07)
-
+//#define LSM_PARAM_ID_MIN_CONFIDENCE_LEVELS		(0x00012C07) //John.Xu rm this to revert Qcom patch for LSM not work
 
 /* HW MAD specific */
 #define AFE_MODULE_HW_MAD				(0x00010230)

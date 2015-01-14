@@ -430,18 +430,9 @@ int adm_get_params(int port_id, uint32_t module_id, uint32_t param_id,
 		rc = -EINVAL;
 		goto adm_get_param_return;
 	}
-	if ((params_data) && (ARRAY_SIZE(adm_get_parameters) >=
-		(1+adm_get_parameters[0])) &&
-		(params_length/sizeof(int) >=
-		adm_get_parameters[0])) {
+	if (params_data) {
 		for (i = 0; i < adm_get_parameters[0]; i++)
 			params_data[i] = adm_get_parameters[1+i];
-	} else {
-		pr_err("%s: Get param data not copied! get_param array size %zd, index %d, params array size %zd, index %d\n",
-		__func__, ARRAY_SIZE(adm_get_parameters),
-		(1+adm_get_parameters[0]),
-		params_length/sizeof(int),
-		adm_get_parameters[0]);
 	}
 	rc = 0;
 adm_get_param_return:
@@ -636,24 +627,13 @@ static int32_t adm_callback(struct apr_client_data *data, void *priv)
 					data->payload_size))
 				break;
 
-			/* payload[3] is the param size, check if payload */
-			/* is big enough and has a valid param size */
-			if ((payload[0] == 0) && (data->payload_size >
-				(4 * sizeof(*payload))) &&
-				(data->payload_size/sizeof(*payload)-4 >=
-				payload[3]) &&
-				(ARRAY_SIZE(adm_get_parameters)-1 >=
-				payload[3])) {
+			if (data->payload_size > (4 * sizeof(uint32_t))) {
 				adm_get_parameters[0] = payload[3];
-				pr_debug("%s: GET_PP PARAM:received parameter length: 0x%x\n",
-					__func__, adm_get_parameters[0]);
+				pr_debug("GET_PP PARAM:received parameter length: %x\n",
+						adm_get_parameters[0]);
 				/* storing param size then params */
 				for (i = 0; i < payload[3]; i++)
 					adm_get_parameters[1+i] = payload[4+i];
-			} else {
-				adm_get_parameters[0] = -1;
-				pr_err("%s: GET_PP_PARAMS failed, setting size to %d\n",
-					__func__, adm_get_parameters[0]);
 			}
 			atomic_set(&this_adm.copp_stat[index], 1);
 			wake_up(&this_adm.wait[index]);
@@ -1191,7 +1171,8 @@ int adm_open(int port_id, int path, int rate, int channel_mode, int topology,
 			(open.topology_id == VPM_TX_DM_RFECNS_COPP_TOPOLOGY))
 				rate = 16000;
 
-		if (perf_mode == ULTRA_LOW_LATENCY_PCM_MODE) {
+		if (perf_mode == ULTRA_LOW_LATENCY_PCM_MODE||
+		    perf_mode == LOW_LATENCY_PCM_MODE) { //John.Xu add to fix Waves effect not work issue
 			open.topology_id = NULL_COPP_TOPOLOGY;
 			rate = ULL_SUPPORTED_SAMPLE_RATE;
 			if(channel_mode > ULL_MAX_SUPPORTED_CHANNEL)
@@ -1417,8 +1398,11 @@ int adm_matrix_map(int session_id, int path, int num_copps,
 		ret = -EINVAL;
 		goto fail_cmd;
 	}
-
+#ifndef CONFIG_VENDOR_EDIT //John.Xu modified for waves effect not works
 	if (perf_mode != ULTRA_LOW_LATENCY_PCM_MODE) {
+#else
+	if (!perf_mode) {
+#endif
 		for (i = 0; i < num_copps; i++)
 			send_adm_cal(port_id[i], path, perf_mode);
 
@@ -1739,8 +1723,11 @@ int adm_close(int port_id, int perf_mode)
 			goto fail_cmd;
 		}
 	}
-
+#ifndef CONFIG_VENDOR_EDIT //modified by John.Xu for Waves effect not works when open touch sound
 	if (perf_mode != ULTRA_LOW_LATENCY_PCM_MODE) {
+#else
+	if (!perf_mode) {
+#endif
 		pr_debug("%s: remove adm device from rtac\n", __func__);
 		rtac_remove_adm_device(port_id, copp_id);
 	}

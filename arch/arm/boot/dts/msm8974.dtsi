@@ -18,7 +18,8 @@
 	interrupt-parent = <&intc>;
 
 	aliases {
-		spi0 = &spi_0;
+		/*VENDOR_EDIT wangjc del spi0*/
+		/*spi0 = &spi_0;*/
 		spi7 = &spi_7;
 		sdhc1 = &sdhc_1; /* SDC1 eMMC slot */
 		sdhc2 = &sdhc_2; /* SDC2 SD card slot */
@@ -869,7 +870,10 @@
 		qcom,scl-gpio = <&msmgpio 3 0>;
 		qcom,sda-gpio = <&msmgpio 2 0>;
 		qcom,master-id = <86>;
-		status = "disabled";
+		/*VENDOR_EDIT wangjc enable*/
+		/*status = "disabled";*/
+		status = "ok";
+		/*end add*/
 	};
 
 	i2c_2: i2c@f9924000 {
@@ -888,7 +892,9 @@
 		qcom,sda-gpio = <&msmgpio 6 0>;
 	};
 
-	spi_0: spi@f9923000 { /* BLSP1 QUP1 */
+/*#ifdef VENDOR_EDIT*/
+/*wangjc delete*/
+	/*spi_0: spi@f9923000 {
 		compatible = "qcom,spi-qup-v2";
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -910,7 +916,8 @@
 		qcom,bam-consumer-pipe-index = <12>;
 		qcom,bam-producer-pipe-index = <13>;
 		qcom,master-id = <86>;
-	};
+	};*/
+/*wangjc del end*/
 
 	qcom,clock-krait@f9016000 {
 		compatible = "qcom,clock-krait-8974";
@@ -2274,11 +2281,18 @@
 		qcom,rx-ring-size = <64>;
 	};
 
+	//#ifdef VENDOR_EDIT
+	//WeiHong.Li@OnLineRD.AirService.Module, 2013/10/24, modify for OEM DATA region 
+	/* NOTICE: 
+           add region(0x05900000 0x100000) for OEM data ram for NV backup.
+         */
         memory_hole: qcom,msm-mem-hole {
                 compatible = "qcom,msm-mem-hole";
                 qcom,memblock-remove = <0x5d00000 0x7d00000
-					0xfa00000 0x500000>; /* Address and Size of Hole */
+					0xfa00000 0x500000
+					0x05900000 0x100000>; /* Address and Size of Hole */
         };
+	//#endif /* VENDOR_EDIT */
 
 	uart7: uart@f995d000 { /*BLSP #2, UART #7 */
 		compatible = "qcom,msm-hsuart-v14";

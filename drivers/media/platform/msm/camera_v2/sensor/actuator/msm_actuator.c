@@ -354,6 +354,10 @@ static int32_t msm_actuator_move_focus(
 			a_ctrl->curr_region_index += sign_dir;
 		}
 		a_ctrl->curr_step_pos = target_step_pos;
+#ifdef VENDOR_EDIT
+/*shijie.zhuo,2014/09/10,Add for close camera click*/
+        a_ctrl->current_lens_pos = a_ctrl->step_position_table[a_ctrl->curr_step_pos];
+#endif
 	}
 
 	move_params->curr_lens_pos = curr_lens_pos;
@@ -446,25 +450,53 @@ static int32_t msm_actuator_set_default_focus(
 	CDBG("Exit\n");
 	return rc;
 }
-
+#ifdef VENDOR_EDIT
+/*shijie.zhuo,2014/09/10,Add for close camera click*/
 static int32_t msm_actuator_power_down(struct msm_actuator_ctrl_t *a_ctrl)
 {
 	int32_t rc = 0;
+	uint16_t code = 0;
+	uint8_t buf[2];
+	uint16_t value = 0;
 	CDBG("Enter\n");
-	if (a_ctrl->vcm_enable) {
-		rc = gpio_direction_output(a_ctrl->vcm_pwd, 0);
-		if (!rc)
-			gpio_free(a_ctrl->vcm_pwd);
-	}
+	if (a_ctrl->actuator_state != ACTUATOR_POWER_DOWN) {
+		if (a_ctrl->vcm_enable) {
+			rc = gpio_direction_output(a_ctrl->vcm_pwd, 0);
+			if (!rc)
+				gpio_free(a_ctrl->vcm_pwd);
+		}
+		code = a_ctrl->current_lens_pos;
+		pr_err(" a_ctrl->curr_lens_pos = %d\n", a_ctrl->current_lens_pos);
+		while(code) {
+			CDBG("%s: code is = %d\n",__func__,code);
+			code = (code > 10)?(code - 10) : 0;
+			value = (code) |(0xE424 & 0xc400);
+			buf[0] = (value & 0xFF00) >> 8;
+			buf[1] = value & 0xFF;
+			rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write_seq(&a_ctrl->i2c_client,
+			buf[0],&buf[1], 1);
+			if (rc < 0)
+				pr_err(" warning, rc=%d", rc);
+			usleep_range(8000, 9000);
+		}
+		buf[0] = buf[1] =  0;
+		rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write_seq(&a_ctrl->i2c_client,
+			buf[0],&buf[1], 1);
+		if (rc < 0)
+			pr_err(" warning, rc=%d", rc);
+		usleep_range(8000, 9000);
+		a_ctrl->actuator_state = ACTUATOR_POWER_DOWN;
 
-	kfree(a_ctrl->step_position_table);
-	a_ctrl->step_position_table = NULL;
-	kfree(a_ctrl->i2c_reg_tbl);
-	a_ctrl->i2c_reg_tbl = NULL;
-	a_ctrl->i2c_tbl_index = 0;
+		kfree(a_ctrl->step_position_table);
+		a_ctrl->step_position_table = NULL;
+		kfree(a_ctrl->i2c_reg_tbl);
+		a_ctrl->i2c_reg_tbl = NULL;
+		a_ctrl->i2c_tbl_index = 0;
+	}
 	CDBG("Exit\n");
 	return rc;
 }
+#endif
 
 static int32_t msm_actuator_set_position(
 	struct msm_actuator_ctrl_t *a_ctrl,
@@ -568,6 +600,10 @@ static int32_t msm_actuator_init(struct msm_actuator_ctrl_t *a_ctrl,
 	}
 
 	kfree(a_ctrl->i2c_reg_tbl);
+#ifdef VENDOR_EDIT
+	//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+	a_ctrl->i2c_reg_tbl = NULL;
+#endif /* VENDOR_EDIT */
 
 	a_ctrl->i2c_reg_tbl =
 		kmalloc(sizeof(struct msm_camera_i2c_reg_array) *
@@ -582,6 +618,10 @@ static int32_t msm_actuator_init(struct msm_actuator_ctrl_t *a_ctrl,
 		a_ctrl->reg_tbl_size *
 		sizeof(struct msm_actuator_reg_params_t))) {
 		kfree(a_ctrl->i2c_reg_tbl);
+#ifdef VENDOR_EDIT
+		//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+		a_ctrl->i2c_reg_tbl = NULL;
+#endif /* VENDOR_EDIT */
 		return -EFAULT;
 	}
 
@@ -594,6 +634,10 @@ static int32_t msm_actuator_init(struct msm_actuator_ctrl_t *a_ctrl,
 				GFP_KERNEL);
 			if (init_settings == NULL) {
 				kfree(a_ctrl->i2c_reg_tbl);
+#ifdef VENDOR_EDIT
+				//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+				a_ctrl->i2c_reg_tbl = NULL;
+#endif /* VENDOR_EDIT */
 				pr_err("Error allocating memory for init_settings\n");
 				return -EFAULT;
 			}
@@ -603,6 +647,10 @@ static int32_t msm_actuator_init(struct msm_actuator_ctrl_t *a_ctrl,
 				sizeof(struct reg_settings_t))) {
 				kfree(init_settings);
 				kfree(a_ctrl->i2c_reg_tbl);
+#ifdef VENDOR_EDIT
+				//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+				a_ctrl->i2c_reg_tbl = NULL;
+#endif /* VENDOR_EDIT */
 				pr_err("Error copying init_settings\n");
 				return -EFAULT;
 			}
@@ -612,6 +660,10 @@ static int32_t msm_actuator_init(struct msm_actuator_ctrl_t *a_ctrl,
 			kfree(init_settings);
 			if (rc < 0) {
 				kfree(a_ctrl->i2c_reg_tbl);
+#ifdef VENDOR_EDIT
+				//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+				a_ctrl->i2c_reg_tbl = NULL;
+#endif /* VENDOR_EDIT */
 				pr_err("Error actuator_init_focus\n");
 				return -EFAULT;
 			}
@@ -625,6 +677,10 @@ static int32_t msm_actuator_init(struct msm_actuator_ctrl_t *a_ctrl,
 
 	a_ctrl->curr_step_pos = 0;
 	a_ctrl->curr_region_index = 0;
+#ifdef VENDOR_EDIT
+/*shijie.zhuo,2014/09/10,Add for close camera click*/
+    a_ctrl->actuator_state = ACTUATOR_POWER_UP;
+#endif
 	CDBG("Exit\n");
 
 	return rc;
@@ -652,6 +708,13 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 		break;
 
 	case CFG_SET_DEFAULT_FOCUS:
+#ifdef VENDOR_EDIT
+		//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+		if (!a_ctrl->i2c_reg_tbl || !a_ctrl->step_position_table) {
+			rc = -ENODEV;
+			break;
+		}
+#endif /* VENDOR_EDIT */
 		rc = a_ctrl->func_tbl->actuator_set_default_focus(a_ctrl,
 			&cdata->cfg.move);
 		if (rc < 0)
@@ -659,6 +722,13 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 		break;
 
 	case CFG_MOVE_FOCUS:
+#ifdef VENDOR_EDIT
+		//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+		if (!a_ctrl->i2c_reg_tbl) {
+			rc = -ENODEV;
+			break;
+		}
+#endif /* VENDOR_EDIT */
 		rc = a_ctrl->func_tbl->actuator_move_focus(a_ctrl,
 			&cdata->cfg.move);
 		if (rc < 0)
@@ -666,11 +736,26 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 		break;
 
 	case CFG_SET_POSITION:
+#ifdef VENDOR_EDIT
+		//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+		if (!a_ctrl->i2c_reg_tbl) {
+			rc = -ENODEV;
+			break;
+		}
+#endif /* VENDOR_EDIT */
 		rc = a_ctrl->func_tbl->actuator_set_position(a_ctrl,
 			&cdata->cfg.setpos);
 		if (rc < 0)
 			pr_err("actuator_set_position failed %d\n", rc);
 		break;
+#ifdef VENDOR_EDIT
+/*shijie.zhuo,2014/09/10,Add for close camera click*/
+    case CFG_ACTUATOR_POWERDOWN:
+        rc = msm_actuator_power_down(a_ctrl);
+		if (rc < 0)
+            pr_err("msm_actuator_power_down failed %d\n", rc);
+		break;
+#endif
 	default:
 		break;
 	}
@@ -702,6 +787,10 @@ static struct msm_camera_i2c_fn_t msm_sensor_cci_func_tbl = {
 	.i2c_read = msm_camera_cci_i2c_read,
 	.i2c_read_seq = msm_camera_cci_i2c_read_seq,
 	.i2c_write = msm_camera_cci_i2c_write,
+#ifdef VENDOR_EDIT
+/*shijie.zhuo,2014/09/10,Add for close camera click*/
+	.i2c_write_seq = msm_camera_cci_i2c_write_seq,
+#endif
 	.i2c_write_table = msm_camera_cci_i2c_write_table,
 	.i2c_write_seq_table = msm_camera_cci_i2c_write_seq_table,
 	.i2c_write_table_w_microdelay =
@@ -745,7 +834,15 @@ static int msm_actuator_close(struct v4l2_subdev *sd,
 	int rc = 0;
 	struct msm_actuator_ctrl_t *a_ctrl =  v4l2_get_subdevdata(sd);
 	CDBG("Enter\n");
+#ifdef VENDOR_EDIT
+	//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+	mutex_lock(a_ctrl->actuator_mutex);
+#endif /* VENDOR_EDIT */
 	if (!a_ctrl) {
+#ifdef VENDOR_EDIT
+		//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+		mutex_unlock(a_ctrl->actuator_mutex);
+#endif /* VENDOR_EDIT */
 		pr_err("failed\n");
 		return -EINVAL;
 	}
@@ -757,7 +854,10 @@ static int msm_actuator_close(struct v4l2_subdev *sd,
 	}
 	kfree(a_ctrl->i2c_reg_tbl);
 	a_ctrl->i2c_reg_tbl = NULL;
-
+#ifdef VENDOR_EDIT
+	//Lycan.Wang@Prd.BasicDrv, 2014-10-23 Add for wild pointer bug
+	mutex_unlock(a_ctrl->actuator_mutex);
+#endif /* VENDOR_EDIT */
 	CDBG("Exit\n");
 	return rc;
 }

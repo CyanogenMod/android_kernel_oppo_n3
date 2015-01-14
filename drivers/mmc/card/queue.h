@@ -38,10 +38,18 @@ struct mmc_queue {
 	struct mmc_card		*card;
 	struct task_struct	*thread;
 	struct semaphore	thread_sem;
+#ifdef VENDOR_EDIT
+/* OPPO 2014-11-06 sjc Modify begin for T card problem */
+	unsigned long		flags;
+#define MMC_QUEUE_SUSPENDED		0
+#define MMC_QUEUE_NEW_REQUEST		1
+#define MMC_QUEUE_URGENT_REQUEST	2
+#else
 	unsigned int		flags;
 #define MMC_QUEUE_SUSPENDED		(1 << 0)
 #define MMC_QUEUE_NEW_REQUEST		(1 << 1)
 #define MMC_QUEUE_URGENT_REQUEST	(1 << 2)
+#endif /*VENDOR_EDIT*/
 
 	int			(*issue_fn)(struct mmc_queue *, struct request *);
 	void			*data;

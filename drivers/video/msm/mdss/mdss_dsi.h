@@ -254,6 +254,10 @@ struct mdss_dsi_ctrl_pdata {
 	int mdss_dsi_clk_on;
 	int rst_gpio;
 	int disp_en_gpio;
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/08/10  Add for 14021 lcd enable */
+	int disp_en_gpio76;	
+#endif /*CONFIG_VENDOR_EDIT*/
 	int disp_te_gpio;
 	int mode_gpio;
 	int disp_te_gpio_requested;
@@ -289,12 +293,9 @@ struct mdss_dsi_ctrl_pdata {
 
 	struct dsi_buf tx_buf;
 	struct dsi_buf rx_buf;
-};
-
-struct dsi_status_data {
-	struct notifier_block fb_notifier;
-	struct delayed_work check_status;
-	struct msm_fb_data_type *mfd;
+/* OPPO 2014-02-11 yxq add begin for Find7s */	
+	int index;
+/* OPPO 2014-02-11 yxq add end */
 };
 
 int dsi_panel_device_register(struct device_node *pan_node,

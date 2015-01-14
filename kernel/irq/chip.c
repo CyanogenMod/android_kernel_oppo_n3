@@ -437,7 +437,12 @@ handle_fasteoi_irq(unsigned int irq, struct irq_desc *desc)
 	 */
 	if (unlikely(!desc->action || irqd_irq_disabled(&desc->irq_data))) {
 		if (!irq_settings_is_level(desc))
+          {      
+            printk("%s, %d, action = %d, irqd_irq_disabled = %d\n", 
+                __func__,__LINE__, !desc->action, irqd_irq_disabled(&desc->irq_data));
+            
 			desc->istate |= IRQS_PENDING;
+          }
 		mask_irq(desc);
 		goto out;
 	}
@@ -492,7 +497,12 @@ handle_edge_irq(unsigned int irq, struct irq_desc *desc)
 	if (unlikely(irqd_irq_disabled(&desc->irq_data) ||
 		     irqd_irq_inprogress(&desc->irq_data) || !desc->action)) {
 		if (!irq_check_poll(desc)) {
+          {
+            printk("%s, %d, irqd_irq_disabled = %d, irqd_irq_inprogress = %d, action = %d\n", 
+                __func__,__LINE__, irqd_irq_disabled(&desc->irq_data), irqd_irq_inprogress(&desc->irq_data), !desc->action);
+           
 			desc->istate |= IRQS_PENDING;
+          }
 			mask_ack_irq(desc);
 			goto out_unlock;
 		}
@@ -553,6 +563,10 @@ void handle_edge_eoi_irq(unsigned int irq, struct irq_desc *desc)
 	if (unlikely(irqd_irq_disabled(&desc->irq_data) ||
 		     irqd_irq_inprogress(&desc->irq_data) || !desc->action)) {
 		if (!irq_check_poll(desc)) {
+            
+            printk("%s, %d, irqd_irq_disabled = %d, irqd_irq_inprogress = %d, action = %d\n", 
+                __func__,__LINE__, irqd_irq_disabled(&desc->irq_data), irqd_irq_inprogress(&desc->irq_data), !desc->action));
+            
 			desc->istate |= IRQS_PENDING;
 			goto out_eoi;
 		}

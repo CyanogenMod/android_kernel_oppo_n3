@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,7 +24,13 @@
 #include <mach/qdsp6v2/rtac.h>
 #include <sound/q6asm-v2.h>
 #include <sound/q6afe-v2.h>
+
+#ifdef VENDOR_EDIT
+/*OPPO 2014-10-27 yuanyan@PhoneSW.Driver add ,fix sound delay too long when changing ringtone with headset pluged (PATCH)*/
+#ifdef CONFIG_OPPO_MSM_14021
 #include <sound/q6audio-v2.h>
+#endif
+#endif
 #include <sound/apr_audio-v2.h>
 #include <q6voice.h>
 #include "audio_acdb.h"
@@ -823,7 +829,12 @@ u32 send_adm_apr(void *buf, u32 opcode)
 	u32	bytes_returned = 0;
 	u32	port_index = 0;
 	u32	copp_id;
+#ifdef VENDOR_EDIT
+/*OPPO 2014-10-27 yuanyan@PhoneSW.Driver add ,fix sound delay too long when changing ringtone with headset pluged (PATCH)*/
+#ifdef CONFIG_OPPO_MSM_14021
 	int	port_id;
+#endif
+#endif
 	u32	payload_size;
 	u32	data_size = 0;
 	struct apr_hdr	adm_params;
@@ -882,6 +893,9 @@ u32 send_adm_apr(void *buf, u32 opcode)
 		       __func__, copp_id);
 		goto done;
 	}
+#ifdef VENDOR_EDIT
+/*OPPO 2014-10-27 yuanyan@PhoneSW.Driver add ,fix sound delay too long when changing ringtone with headset pluged (PATCH)*/
+#ifdef CONFIG_OPPO_MSM_14021
 	port_id = q6audio_get_port_id_from_index(port_index);
 
 	if (port_id < 0) {
@@ -889,7 +903,9 @@ u32 send_adm_apr(void *buf, u32 opcode)
 		       __func__, port_index);
 		goto done;
 	}
-
+#endif
+/*OPPO 2014-10-27 yuanyan@PhoneSW.Driver Add end*/
+#endif
 	mutex_lock(&rtac_adm_apr_mutex);
 	if (rtac_adm_apr_data.apr_handle == NULL) {
 		pr_err("%s: APR not initialized\n", __func__);
@@ -945,7 +961,15 @@ u32 send_adm_apr(void *buf, u32 opcode)
 	adm_params.dest_svc = APR_SVC_ADM;
 	adm_params.dest_domain = APR_DOMAIN_ADSP;
 	adm_params.dest_port = copp_id;
+//#ifdef VENDOR_EDIT
+/*OPPO 2014-10-27 yuanyan@PhoneSW.Driver add ,fix sound delay too long when changing ringtone with headset pluged (PATCH)*/
+#ifdef CONFIG_OPPO_MSM_14021
 	adm_params.token = port_id;
+#else
+	adm_params.token = copp_id;
+#endif
+/*OPPO 2014-10-27 yuanyan@PhoneSW.Driver Add end*/
+
 	adm_params.opcode = opcode;
 
 	/* fill for out-of-band */

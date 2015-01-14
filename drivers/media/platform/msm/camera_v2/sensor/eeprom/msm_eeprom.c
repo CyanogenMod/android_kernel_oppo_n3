@@ -131,12 +131,15 @@ static int eeprom_config_read_cal_data(struct msm_eeprom_ctrl_t *e_ctrl,
 		e_ctrl->cal_data.mapdata,
 		cdata->cfg.read_data.num_bytes);
 
+#ifndef VENDOR_EDIT
+/*deleted by Jinshui.Liu@Camera 20141018 start for need it after kill daemon*/
 	/* should only be called once.  free kernel resource */
 	if (!rc) {
 		kfree(e_ctrl->cal_data.mapdata);
 		kfree(e_ctrl->cal_data.map);
 		memset(&e_ctrl->cal_data, 0, sizeof(e_ctrl->cal_data));
 	}
+#endif
 	return rc;
 }
 

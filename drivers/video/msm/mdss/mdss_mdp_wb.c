@@ -403,7 +403,12 @@ static struct mdss_mdp_wb_data *get_user_node(struct msm_fb_data_type *mfd,
 	struct mdss_mdp_wb *wb = mfd_to_wb(mfd);
 	struct mdss_mdp_wb_data *node;
 	struct mdss_mdp_img_data *buf;
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
 	int ret;
+#else
+	int ret, rc;
+#endif /*CONFIG_VENDOR_EDIT*/
 
 	if (!list_empty(&wb->register_queue)) {
 		list_for_each_entry(node, &wb->register_queue, registered_entry)
@@ -427,20 +432,27 @@ static struct mdss_mdp_wb_data *get_user_node(struct msm_fb_data_type *mfd,
 	buf = &node->buf_data.p[0];
 	if (wb->is_secure)
 		buf->flags |= MDP_SECURE_OVERLAY_SESSION;
-
-	ret = mdss_iommu_ctrl(1);
-	if (IS_ERR_VALUE(ret)) {
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+	rc = mdss_iommu_ctrl(1);
+	if (IS_ERR_VALUE(rc)) {
 		pr_err("IOMMU attach failed\n");
 		goto register_fail;
 	}
+#endif /*CONFIG_VENDOR_EDIT*/
 	ret = mdss_mdp_get_img(data, buf);
-	if (IS_ERR_VALUE(ret)) {
-		pr_err("error getting buffer info\n");
-		mdss_iommu_ctrl(0);
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+	rc = mdss_iommu_ctrl(0);
+	if (IS_ERR_VALUE(rc)) {
+		pr_err("IOMMU dettach failed\n");
 		goto register_fail;
 	}
-	mdss_iommu_ctrl(0);
-
+#endif /*CONFIG_VENDOR_EDIT*/
+	if (IS_ERR_VALUE(ret)) {
+		pr_err("error getting buffer info\n");
+		goto register_fail;
+	}
 	memcpy(&node->buf_info, data, sizeof(*data));
 
 	ret = mdss_mdp_wb_register_node(wb, node);
@@ -480,6 +492,10 @@ static int mdss_mdp_wb_queue(struct msm_fb_data_type *mfd,
 {
 	struct mdss_mdp_wb *wb = mfd_to_wb(mfd);
 	struct mdss_mdp_wb_data *node = NULL;
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
+#endif /*CONFIG_VENDOR_EDIT*/
 	int ret = 0;
 
 	if (!wb) {
@@ -488,6 +504,12 @@ static int mdss_mdp_wb_queue(struct msm_fb_data_type *mfd,
 	}
 
 	pr_debug("fb%d queue\n", wb->fb_ndx);
+
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+	if (!mfd->panel_info->cont_splash_enabled)
+		mdss_iommu_attach(mdp5_data->mdata);
+#endif /*CONFIG_VENDOR_EDIT*/
 
 	mutex_lock(&wb->lock);
 	if (local)
@@ -758,6 +780,10 @@ int mdss_mdp_wb_ioctl_handler(struct msm_fb_data_type *mfd, u32 cmd,
 {
 	struct msmfb_data data;
 	int ret = -ENOSYS, hint = 0;
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+	int rc;
+#endif /*CONFIG_VENDOR_EDIT*/
 
 	switch (cmd) {
 	case MSMFB_WRITEBACK_INIT:
@@ -788,13 +814,23 @@ int mdss_mdp_wb_ioctl_handler(struct msm_fb_data_type *mfd, u32 cmd,
 		}
 		break;
 	case MSMFB_WRITEBACK_TERMINATE:
-		ret = mdss_iommu_ctrl(1);
-		if (IS_ERR_VALUE(ret)) {
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+		rc = mdss_iommu_ctrl(1);
+		if (IS_ERR_VALUE(rc)) {
 			pr_err("IOMMU attach failed\n");
-			return ret;
+			return rc;
 		}
+#endif /*CONFIG_VENDOR_EDIT*/
 		ret = mdss_mdp_wb_terminate(mfd);
-		mdss_iommu_ctrl(0);
+#ifdef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+		rc = mdss_iommu_ctrl(0);
+		if (IS_ERR_VALUE(rc)) {
+			pr_err("IOMMU dettach failed\n");
+			return rc;
+		}
+#endif /*CONFIG_VENDOR_EDIT*/
 		break;
 	case MSMFB_WRITEBACK_SET_MIRRORING_HINT:
 		if (!copy_from_user(&hint, arg, sizeof(hint))) {
@@ -907,12 +943,25 @@ int msm_fb_writeback_set_secure(struct fb_info *info, int enable)
 EXPORT_SYMBOL(msm_fb_writeback_set_secure);
 
 /**
- * msm_fb_writeback_iommu_ref() - Add/Remove vote on MDSS IOMMU being attached.
- * @enable - true adds vote on MDSS IOMMU, false removes the vote.
+ * msm_fb_writeback_iommu_ref() - Power ON/OFF mdp clock
+ * @enable - true/false to Power ON/OFF mdp clock
  *
- * Call to vote on MDSS IOMMU being enabled. To ensure buffers are properly
- * mapped to IOMMU context bank.
+ * Call to enable mdp clock at start of mdp_mmap/mdp_munmap API and
+ * to disable mdp clock at end of these API's to ensure iommu is in
+ * proper state while driver map/un-map any buffers.
  */
+#ifndef VENDOR_EDIT
+/* liuyan@Onlinerd.driver, 2014/10/27  Add for set cabc crash patch */
+int msm_fb_writeback_iommu_ref(struct fb_info *info, int enable)
+{
+	if (enable)
+		mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON, false);
+	else
+		mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF, false);
+
+	return 0;
+}
+#else
 int msm_fb_writeback_iommu_ref(struct fb_info *info, int enable)
 {
 	int ret;
@@ -924,9 +973,14 @@ int msm_fb_writeback_iommu_ref(struct fb_info *info, int enable)
 			return ret;
 		}
 	} else {
-		mdss_iommu_ctrl(0);
+		ret = mdss_iommu_ctrl(0);
+		if (IS_ERR_VALUE(ret)) {
+			pr_err("IOMMU dettach failed\n");
+			return ret;
+		}
 	}
 
 	return 0;
 }
+#endif /*CONFIG_VENDOR_EDIT*/
 EXPORT_SYMBOL(msm_fb_writeback_iommu_ref);
