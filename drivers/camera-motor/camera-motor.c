@@ -182,8 +182,6 @@ struct CameraMotor_dev  *motor_devdata = NULL;
 struct qpnp_pin_cfg param;  // zhangqiang add  for motor blocking 
 static void CameraMotor_running(struct work_struct *work);
 static struct wake_lock motor_suspend_wake_lock;
-void start_motor(void);
-void stop_motor(void);
 
 struct manufacture_info camaramotor_info = {
 	.version = "8834",

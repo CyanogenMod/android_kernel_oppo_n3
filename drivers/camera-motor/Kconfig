@@ -1,5 +1,6 @@
 config CAMERA_MOTOR
 	tristate "CAMERA MOTOR Controler"
+	select HALL_MXM1120
 	default n
 	help
 	  Say Y here to enable camera motor. 

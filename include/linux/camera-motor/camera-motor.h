@@ -19,3 +19,6 @@ enum {
 	CAMERA_MOTOR_MODE_1_32
 };
 
+void start_motor(void);
+void stop_motor(void);
+void motor_speed_set(int speed);

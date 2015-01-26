@@ -31,6 +31,7 @@
 
 #include <linux/of_gpio.h>
 #include <linux/regulator/consumer.h>
+#include <linux/camera-motor/camera-motor.h>
 
 #define M1120_STATUS_SIGNAL
 
@@ -288,9 +289,6 @@ static int m1120_set_power(struct device *dev, bool on)
 
 int start_motor_flag = 0;               // when motor started, we begin to detect whether motor block
 int direction_for_hall = 0;             // 1: motor forward(to 206 degree), 0: motor backward(to 0 degree)
-extern void start_motor(void);
-extern void stop_motor(void);
-extern void motor_speed_set(int speed);
 
 static int detection_count = 0;         // after motor started , we should wait for sometime to detect
 
