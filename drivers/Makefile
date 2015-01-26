@@ -154,6 +154,6 @@ obj-$(CONFIG_SENSORS)		+= sensors/
 
 #OPPO 2014-05-23 Xinhua.Song added begin for camera motor 
 #ifdef VENDOR_EDIT
-#obj-$(CONFIG_CAMERA_MOTOR)  += camera-motor/
+obj-$(CONFIG_CAMERA_MOTOR)  += camera-motor/
 #endif VENDOR_EDIT
 #OPPO 2014-05-23 Xinhua.Song added end
