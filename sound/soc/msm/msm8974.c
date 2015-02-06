@@ -1425,6 +1425,7 @@ static int msm_slim_0_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 
+#ifndef CONFIG_OPPO_MSM_14021
 static int msm_slim_4_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 					    struct snd_pcm_hw_params *params)
 {
@@ -1440,6 +1441,7 @@ static int msm_slim_4_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 
 	return 0;
 }
+#endif
 
 static int msm_slim_5_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 					    struct snd_pcm_hw_params *params)
@@ -2811,6 +2813,24 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 	},
 /* OPPO 2014-09-19 John.Xu@Audio.Driver Add begin for  Revert Qcom patch for LSM function not work */
 #ifdef VENDOR_EDIT
+#ifdef CONFIG_OPPO_MSM_14021
+/* xiaojun.lv@PhoneDpt.AudioDrv, 2014/07/26, add for MI2S feedback patch */
+	{
+		.name = "SEC_MI2S Hostless",
+		.stream_name = "SEC_MI2S Hostless",
+		.cpu_dai_name = "SEC_MI2S_HOSTLESS",
+		.platform_name  = "msm-pcm-hostless",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		/* this dainlink has playback support */
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+	},
+#else
 	{
 		.name = LPASS_BE_SLIMBUS_4_TX,
 		.stream_name = "Slimbus4 Capture",
@@ -2824,6 +2844,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ignore_suspend = 1,
 	},
+#endif
 	/* Ultrasound RX Back End DAI Link */
 	{
 		.name = "SLIMBUS_2 Hostless Playback",
@@ -3003,24 +3024,6 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.ops = &msm_sec_auxpcm_be_ops,
 		.ignore_suspend = 1,
 	},
-#ifdef CONFIG_OPPO_MSM_14021
-/* xiaojun.lv@PhoneDpt.AudioDrv, 2014/07/26, add for MI2S feedback patch */	
-	{
-		.name = "SEC_MI2S Hostless",
-		.stream_name = "SEC_MI2S Hostless",
-		.cpu_dai_name = "SEC_MI2S_HOSTLESS",
-		.platform_name  = "msm-pcm-hostless",
-		.dynamic = 1,	
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			    SND_SOC_DPCM_TRIGGER_POST},	
-		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
-		.ignore_suspend = 1,
-		/* this dainlink has playback support */
-		.ignore_pmdown_time = 1,
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",	
-	},	
-#endif
 	/* Backend DAI Links */
 	{
 		.name = LPASS_BE_SLIMBUS_0_RX,
