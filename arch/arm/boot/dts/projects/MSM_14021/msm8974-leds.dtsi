@@ -18,7 +18,7 @@
 		status = "okay";
 		qcom,rgb_0 {
 			label = "rgb";
-			linux,name = "rgb_red";
+			linux,name = "led:rgb_red";
 			qcom,mode = "pwm";
 			qcom,pwm-channel = <6>;
 			qcom,duty-ms = <200>;
@@ -42,7 +42,7 @@
 
 		qcom,rgb_1 {
 			label = "rgb";
-			linux,name = "rgb_green";
+			linux,name = "led:rgb_green";
 			qcom,mode = "pwm";
 			qcom,pwm-channel = <5>;
 			qcom,duty-ms = <200>;
