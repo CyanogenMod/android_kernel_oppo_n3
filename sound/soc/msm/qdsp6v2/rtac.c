@@ -32,7 +32,7 @@
 #endif
 #endif
 #include <sound/apr_audio-v2.h>
-#include <q6voice.h>
+#include "q6voice.h"
 #include "audio_acdb.h"
 
 
