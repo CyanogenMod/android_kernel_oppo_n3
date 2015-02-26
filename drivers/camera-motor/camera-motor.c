@@ -426,16 +426,19 @@ extern int direction_for_hall;
 
 void start_motor(void)
 {
+    mutex_lock(&motor_devdata->data.lock);
     motor_devdata->data.pwm_enable = 1; 
-    
-    CameraMotor_running(&motor_devdata->data.work);
+    mutex_unlock(&motor_devdata->data.lock);
+    schedule_work(&motor_devdata->data.work);
 }
 
 void stop_motor(void)
 {
+    mutex_lock(&motor_devdata->data.lock);
     motor_devdata->data.pwm_enable = 0;
+    mutex_unlock(&motor_devdata->data.lock);
 
-    CameraMotor_running(&motor_devdata->data.work);
+    schedule_work(&motor_devdata->data.work);
 
     printk("stop motor , dhall detect! \n");
 }
@@ -451,8 +454,10 @@ static void CameraMotor_running(struct work_struct *work)
 	unsigned long duty_ns, intsecond,nsecond;
 	long long value, period_ns;
 	int mdmode = 0;
-    
-	printk("%s enable  = %d, dir = %d\n", __func__,motor_devdata->data.pwm_enable,  motor_devdata->data.md_dir);
+
+	mutex_lock(&motor_devdata->data.lock);
+
+	printk("%s enable  = %d, dir = %d, start %d\n", __func__,motor_devdata->data.pwm_enable,  motor_devdata->data.md_dir, start_motor_flag);
 
     direction_for_hall = motor_devdata->data.md_dir;    // zhangqiang add  for motor blocking 
     
@@ -783,6 +788,8 @@ static void CameraMotor_running(struct work_struct *work)
         start_motor_flag = 0; // zhangqiang add  for motor blocking 
         wake_unlock(&motor_suspend_wake_lock);
 	}
+
+	mutex_unlock(&motor_devdata->data.lock);
 }
 
 static struct device_attribute dev_attr_direction = {
@@ -917,7 +924,9 @@ static int cameramotor_dt(struct device *dev, struct CameraMotor_platform_data *
 
 static enum hrtimer_restart CameraMotor_timer_func(struct hrtimer *hrtimer)
 {
+	mutex_lock(&motor_devdata->data.lock);
 	motor_devdata->data.pwm_enable = 0;
+	mutex_unlock(&motor_devdata->data.lock);
 	schedule_work(&motor_devdata->data.work);
 	return HRTIMER_NORESTART;
 }
