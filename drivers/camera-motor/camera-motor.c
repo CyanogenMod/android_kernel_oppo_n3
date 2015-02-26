@@ -158,8 +158,7 @@ struct CameraMotor_platform_data
 	struct pwm_device	*pwm;
 	
 	struct work_struct	work;
-	struct mutex		lock;
-
+	spinlock_t		lock;
 
 };
 
@@ -354,7 +353,7 @@ static ssize_t pwm_enable_store(struct device *pdev, struct device_attribute *at
 	if (!ret) 
 	{
 		ret = size;
-		mutex_lock(&motor_devdata->data.lock);
+		spin_lock(&motor_devdata->data.lock);
 		hrtimer_cancel(&motor_devdata->timer);
 		if(enable == 0)
 		{
@@ -367,7 +366,7 @@ static ssize_t pwm_enable_store(struct device *pdev, struct device_attribute *at
 
         printk("pwm_enable %d\n", motor_devdata->data.pwm_enable);
         
-		mutex_unlock(&motor_devdata->data.lock);
+		spin_unlock(&motor_devdata->data.lock);
 		schedule_work(&motor_devdata->data.work);	
 	}
 	return ret;
@@ -384,18 +383,17 @@ static ssize_t pwm_change_speed_store(struct device *pdev, struct device_attribu
 	if (!ret) 
 	{
 		ret = size;
-		mutex_lock(&motor_devdata->data.lock);
+		spin_lock(&motor_devdata->data.lock);
 		hrtimer_cancel(&motor_devdata->timer);
 
-        motor_devdata->data.md_speed = speed;
+		motor_devdata->data.md_speed = speed;
+		spin_unlock(&motor_devdata->data.lock);
         
         printk("pwm_change_speed : %d\n", motor_devdata->data.md_speed);
         
         stop_motor();
 
         start_motor();
-      
-		mutex_unlock(&motor_devdata->data.lock);
 	}
 	return ret;
 }
@@ -426,23 +424,28 @@ extern int direction_for_hall;
 
 void start_motor(void)
 {
+    spin_lock(&motor_devdata->data.lock);
     motor_devdata->data.pwm_enable = 1; 
-    
-    CameraMotor_running(&motor_devdata->data.work);
+    spin_unlock(&motor_devdata->data.lock);
+    schedule_work(&motor_devdata->data.work);
 }
 
 void stop_motor(void)
 {
+    spin_lock(&motor_devdata->data.lock);
     motor_devdata->data.pwm_enable = 0;
+    spin_unlock(&motor_devdata->data.lock);
 
-    CameraMotor_running(&motor_devdata->data.work);
+    schedule_work(&motor_devdata->data.work);
 
     printk("stop motor , dhall detect! \n");
 }
 
 void motor_speed_set(int speed)
 {
+    spin_lock(&motor_devdata->data.lock);
     motor_devdata->data.md_speed = speed;
+    spin_unlock(&motor_devdata->data.lock);
     printk("%s = %d! \n", __func__, speed);
 }
 
@@ -451,8 +454,10 @@ static void CameraMotor_running(struct work_struct *work)
 	unsigned long duty_ns, intsecond,nsecond;
 	long long value, period_ns;
 	int mdmode = 0;
-    
-	printk("%s enable  = %d, dir = %d\n", __func__,motor_devdata->data.pwm_enable,  motor_devdata->data.md_dir);
+
+	spin_lock(&motor_devdata->data.lock);
+
+	printk("%s enable  = %d, dir = %d, start %d\n", __func__,motor_devdata->data.pwm_enable,  motor_devdata->data.md_dir, start_motor_flag);
 
     direction_for_hall = motor_devdata->data.md_dir;    // zhangqiang add  for motor blocking 
     
@@ -783,6 +788,8 @@ static void CameraMotor_running(struct work_struct *work)
         start_motor_flag = 0; // zhangqiang add  for motor blocking 
         wake_unlock(&motor_suspend_wake_lock);
 	}
+
+	spin_unlock(&motor_devdata->data.lock);
 }
 
 static struct device_attribute dev_attr_direction = {
@@ -917,7 +924,9 @@ static int cameramotor_dt(struct device *dev, struct CameraMotor_platform_data *
 
 static enum hrtimer_restart CameraMotor_timer_func(struct hrtimer *hrtimer)
 {
+	spin_lock(&motor_devdata->data.lock);
 	motor_devdata->data.pwm_enable = 0;
+	spin_unlock(&motor_devdata->data.lock);
 	schedule_work(&motor_devdata->data.work);
 	return HRTIMER_NORESTART;
 }
@@ -994,7 +1003,7 @@ static int CameraMotor_probe(struct i2c_client *client, const struct i2c_device_
 	} else
 		printk("songxh CameraMotor_probe  got pwm for camera motor\n");
 
-	mutex_init(&motor_devdata->data.lock);
+	spin_lock_init(&motor_devdata->data.lock);
 
 	CameraMotor_init_timer(motor_devdata);
 
