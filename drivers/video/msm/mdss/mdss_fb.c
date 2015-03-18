@@ -510,32 +510,6 @@ static ssize_t mdss_get_gamma(struct device *dev,
 
 #endif /*VENDOR_EDIT*/
 
-
-#ifdef VENDOR_EDIT
-/* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/02/17  Add for set cabc */
-extern int set_cabc(int level);
-extern int cabc_mode;
-
-static ssize_t mdss_get_cabc(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	printk(KERN_INFO "get cabc mode = %d\n",cabc_mode);
-
-    return sprintf(buf, "%d\n", cabc_mode);
-}
-
-static ssize_t mdss_set_cabc(struct device *dev,
-                               struct device_attribute *attr,
-                               const char *buf, size_t count)
-{
-    int level = 0;
-    sscanf(buf, "%du", &level);
-    set_cabc(level);
-    return count;
-}
-
-#endif /*VENDOR_EDIT*/
-
 static int pcc_r = 32768, pcc_g = 32768, pcc_b = 32768;
 static ssize_t mdss_get_rgb(struct device *dev,
 			    struct device_attribute *attr, char *buf)
@@ -600,6 +574,64 @@ static ssize_t mdss_set_rgb(struct device *dev,
 	return count;
 }
 
+static ssize_t mdss_get_cabc(struct device *dev,
+			     struct device_attribute *attr, char *buf)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
+
+	return sprintf(buf, "%d\n", pdata->panel_info.cabc_mode);
+}
+
+static ssize_t mdss_set_cabc(struct device *dev, struct device_attribute *attr,
+			     const char *buf, size_t count)
+{
+	int rc, level = 0;
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
+
+	rc = kstrtoint(buf, 10, &level);
+	if (rc) {
+		pr_err("kstrtoint failed. rc=%d\n", rc);
+		return rc;
+	}
+
+	mdss_dsi_panel_set_cabc(pdata, level);
+
+	return count;
+}
+
+static ssize_t mdss_get_sre(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
+
+	return sprintf(buf, "%d\n", pdata->panel_info.sre_enabled);
+}
+
+static ssize_t mdss_set_sre(struct device *dev, struct device_attribute *attr,
+			    const char *buf, size_t count)
+{
+	int rc, value = 0;
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
+
+	rc = kstrtoint(buf, 10, &value);
+	if (rc) {
+		pr_err("kstrtoint failed. rc=%d\n", rc);
+		return rc;
+	}
+
+	mdss_dsi_panel_set_sre(pdata, !!value);
+
+	return count;
+}
+
 static DEVICE_ATTR(msm_fb_type, S_IRUGO, mdss_fb_get_type, NULL);
 static DEVICE_ATTR(msm_fb_split, S_IRUGO, mdss_fb_get_split, NULL);
 static DEVICE_ATTR(show_blank_event, S_IRUGO, mdss_mdp_show_blank_event, NULL);
@@ -609,10 +641,6 @@ static DEVICE_ATTR(lcdoff, S_IRUGO, mdss_mdp_lcdoff_event, NULL);
 #endif
 /* OPPO 2013-11-26 yxq Add end */
 #ifdef VENDOR_EDIT
-/* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/02/17  Add for set cabc */ 
-static DEVICE_ATTR(cabc, S_IRUGO|S_IWUSR, mdss_get_cabc, mdss_set_cabc);
-#endif /*VENDOR_EDIT*/
-#ifdef VENDOR_EDIT
 /* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/04/12  Add for gamma correction */
 static DEVICE_ATTR(gamma, S_IRUGO|S_IWUSR, mdss_get_gamma, mdss_set_gamma);
 #endif /*VENDOR_EDIT*/
@@ -620,6 +648,8 @@ static DEVICE_ATTR(idle_time, S_IRUGO | S_IWUSR | S_IWGRP,
 	mdss_fb_get_idle_time, mdss_fb_set_idle_time);
 static DEVICE_ATTR(idle_notify, S_IRUGO, mdss_fb_get_idle_notify, NULL);
 static DEVICE_ATTR(rgb, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_rgb, mdss_set_rgb);
+static DEVICE_ATTR(cabc, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_cabc, mdss_set_cabc);
+static DEVICE_ATTR(sre, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_sre, mdss_set_sre);
 
 static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_type.attr,
@@ -633,15 +663,12 @@ static struct attribute *mdss_fb_attrs[] = {
 #endif
 /* OPPO 2013-11-26 yxq Add end */
 #ifdef VENDOR_EDIT
-/* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/02/17  Add for set cabc */
-	&dev_attr_cabc.attr,
-#endif /*VENDOR_EDIT*/
-
-#ifdef VENDOR_EDIT
 /* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/04/12  Add for gamma correction */
 	&dev_attr_gamma.attr,
 #endif /*VENDOR_EDIT*/
 	&dev_attr_rgb.attr,
+	&dev_attr_cabc.attr,
+	&dev_attr_sre.attr,
 	NULL,
 };
 

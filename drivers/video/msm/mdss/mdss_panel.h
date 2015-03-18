@@ -310,6 +310,11 @@ struct mdss_panel_info {
 
 	uint32_t panel_dead;
 
+	int cabc_available;
+	int cabc_mode;
+	int sre_available;
+	bool sre_enabled;
+
 	struct lcd_panel_info lcdc;
 	struct fbc_panel_info fbc;
 	struct mipi_panel_info mipi;
@@ -443,4 +448,11 @@ int mdss_panel_get_boot_cfg(void);
  * returns true if mdss is ready, else returns false.
  */
 bool mdss_is_ready(void);
+
+int mdss_dsi_panel_set_cabc(struct mdss_panel_data *panel_data, int level);
+int mdss_dsi_panel_set_gamma_index(struct mdss_panel_data *panel_data,
+				   int index);
+int mdss_dsi_panel_set_sre(struct mdss_panel_data *panel_data, bool enable);
+int mdss_dsi_panel_set_color_enhance(struct mdss_panel_data *panel_data,
+				     bool enable);
 #endif /* MDSS_PANEL_H */

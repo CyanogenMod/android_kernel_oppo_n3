@@ -106,12 +106,16 @@
 		qcom,mdss-dsi-mdp-trigger = "trigger_sw";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 200>, <1 20>;
-		/*yxr add begin for CABC 2014-11-06 liuyan reduce delay */
-		qcom,mdss-dsi-cabc-off-command = [15 01 00 00 01 00 02 55 00];
-		qcom,mdss-dsi-cabc-ui-command = [15 01 00 00 01 00 02 55 01];
-		qcom,mdss-dsi-cabc-still-image-command = [15 01 00 00 01 00 02 55 02];
-		qcom,mdss-dsi-cabc-video-command = [15 01 00 00 01 00 02 55 03];
-		/*2014-11-06 liuyan reduce delay end*/
+		qcom,mdss-dsi-cabc-off-command = [15 01 00 00 10 00 02 55 00
+						  05 01 00 00 10 00 02 29 00];
+		qcom,mdss-dsi-cabc-ui-command = [15 01 00 00 10 00 02 55 01
+						 05 01 00 00 10 00 02 29 00];
+		qcom,mdss-dsi-cabc-still-image-command = [15 01 00 00 10 00 02 55 02
+							  05 01 00 00 10 00 02 29 00];
+		qcom,mdss-dsi-cabc-video-command = [15 01 00 00 10 00 02 55 03
+						    05 01 00 00 10 00 02 29 00];
+		qcom,mdss-dsi-sre-ui-command = [15 01 00 00 10 00 02 55 60
+						05 01 00 00 10 00 02 29 00];
 		qcom,mdss-dsi-gamma1 = [23 01 00 00 01 00 02 b0 04
 								29 01 00 00 01 00 14 c8 01 0A FD 03 01 E8 00 00 03 FC F5 A1 00 00 01 FD 06 FC 00
 								23 01 00 00 00 00 02 d6 01
