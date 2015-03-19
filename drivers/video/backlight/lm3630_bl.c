@@ -54,9 +54,9 @@
 /* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/03/10  Add for flicker in low backlight */
 static bool pwm_flag = true;
 static int backlight_level;
-extern int cabc_mode;
+static int cabc_active = 0;
 static int pre_brightness=0;
-int set_backlight_pwm(int state);
+int set_backlight_pwm_for_cabc(bool active);
 #endif /*VENDOR_EDIT*/
 
 static struct lm3630_chip_data *lm3630_pchip;
@@ -470,11 +470,7 @@ static void lm3630_backlight_unregister(struct lm3630_chip_data *pchip)
 #ifdef VENDOR_EDIT
 /* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/03/10  Add for flicker in low backlight */
 		backlight_level =  bl_level;
-		if(bl_level <= 0x14 && pwm_flag==true){
-			set_backlight_pwm(0);
-		}else if(bl_level > 0x14 && pwm_flag==false && cabc_mode >0){
-			set_backlight_pwm(1);
-		}
+		set_backlight_pwm_for_cabc(cabc_active);
 #endif /*VENDOR_EDIT*/
 	return bl_level;
 out:
@@ -842,25 +838,23 @@ void lm3630_recover_max_current(void)
 
 #ifdef VENDOR_EDIT
 /* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/02/17  Add for set cabc */
-int set_backlight_pwm(int state)
+int set_backlight_pwm_for_cabc(bool active)
 {
-    int rc = 0;
-	//if (get_pcb_version() < HW_VERSION__20) { /* For Find7 */
-        if (get_boot_mode() == MSM_BOOT_MODE__NORMAL) {
-			if( state == 1 && backlight_level <= 0x14 ) return rc;
-        	if(state == 1)
-    		{
-       			 rc = regmap_update_bits(lm3630_pchip->regmap, REG_CONFIG, 0x01, 0x01);
-				 pwm_flag = true;
-   		    }
-   			else
-   			{
-    		     rc = regmap_update_bits(lm3630_pchip->regmap, REG_CONFIG, 0x01, 0x00);
-				 pwm_flag = false;
-  			}
-        }
-    //}
-    return rc;
+	int rc = 0;
+
+	cabc_active = active;
+
+	if (get_boot_mode() == MSM_BOOT_MODE__NORMAL) {
+		bool need_pwm = backlight_level > 20 && cabc_active;
+		if (need_pwm != pwm_flag) {
+			 rc = regmap_update_bits(lm3630_pchip->regmap, REG_CONFIG,
+						 0x01, need_pwm ? 0x01 : 0x00);
+			 if (rc == 0)
+				pwm_flag = need_pwm;
+		}
+	}
+
+	return rc;
 }
 #endif /*VENDOR_EDIT*/
 
