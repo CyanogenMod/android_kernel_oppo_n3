@@ -610,7 +610,7 @@ static ssize_t mdss_get_sre(struct device *dev,
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
 	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
 
-	return sprintf(buf, "%d\n", pdata->panel_info.sre_enabled);
+	return sprintf(buf, "%d\n", pdata->panel_info.sre_level);
 }
 
 static ssize_t mdss_set_sre(struct device *dev, struct device_attribute *attr,
@@ -627,7 +627,65 @@ static ssize_t mdss_set_sre(struct device *dev, struct device_attribute *attr,
 		return rc;
 	}
 
-	mdss_dsi_panel_set_sre(pdata, !!value);
+	mdss_dsi_panel_set_sre(pdata, value);
+
+	return count;
+}
+
+static ssize_t mdss_get_aco(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
+
+	return sprintf(buf, "%d\n", pdata->panel_info.aco_enabled);
+}
+
+static ssize_t mdss_set_aco(struct device *dev, struct device_attribute *attr,
+			    const char *buf, size_t count)
+{
+	int rc, value = 0;
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
+
+	rc = kstrtoint(buf, 10, &value);
+	if (rc) {
+		pr_err("kstrtoint failed. rc=%d\n", rc);
+		return rc;
+	}
+
+	mdss_dsi_panel_set_aco(pdata, !!value);
+
+	return count;
+}
+
+static ssize_t mdss_get_ce(struct device *dev,
+			   struct device_attribute *attr, char *buf)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
+
+	return sprintf(buf, "%d\n", pdata->panel_info.ce_enabled);
+}
+
+static ssize_t mdss_set_ce(struct device *dev, struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	int rc, value = 0;
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
+
+	rc = kstrtoint(buf, 10, &value);
+	if (rc) {
+		pr_err("kstrtoint failed. rc=%d\n", rc);
+		return rc;
+	}
+
+	mdss_dsi_panel_set_color_enhance(pdata, !!value);
 
 	return count;
 }
@@ -650,6 +708,8 @@ static DEVICE_ATTR(idle_notify, S_IRUGO, mdss_fb_get_idle_notify, NULL);
 static DEVICE_ATTR(rgb, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_rgb, mdss_set_rgb);
 static DEVICE_ATTR(cabc, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_cabc, mdss_set_cabc);
 static DEVICE_ATTR(sre, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_sre, mdss_set_sre);
+static DEVICE_ATTR(aco, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_aco, mdss_set_aco);
+static DEVICE_ATTR(color_enhance, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_ce, mdss_set_ce);
 
 static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_type.attr,
@@ -669,6 +729,8 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_rgb.attr,
 	&dev_attr_cabc.attr,
 	&dev_attr_sre.attr,
+	&dev_attr_aco.attr,
+	&dev_attr_color_enhance.attr,
 	NULL,
 };
 

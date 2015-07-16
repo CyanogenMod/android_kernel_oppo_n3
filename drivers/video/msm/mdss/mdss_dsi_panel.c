@@ -135,11 +135,23 @@ static struct device_attribute mdss_lcd_attrs[] = {
 
 #ifdef VENDOR_EDIT
 /* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/02/17  Add for set cabc */
-struct dsi_panel_cmds cabc_off_sequence;
-struct dsi_panel_cmds cabc_user_interface_image_sequence;
-struct dsi_panel_cmds cabc_still_image_sequence;
-struct dsi_panel_cmds cabc_video_image_sequence;
-struct dsi_panel_cmds cabc_sre_sequence;
+static struct {
+    const uint8_t *cmd_prefix;
+    unsigned int cmd_prefix_len;
+    const uint8_t *cmd_postfix;
+    unsigned int cmd_postfix_len;
+    const uint8_t *ce_on_cmd;
+    unsigned int ce_on_cmd_len;
+    const uint8_t *ce_off_cmd;
+    unsigned int ce_off_cmd_len;
+    uint8_t cabc_ui_value;
+    uint8_t cabc_image_value;
+    uint8_t cabc_video_value;
+    uint8_t sre_weak_value;
+    uint8_t sre_medium_value;
+    uint8_t sre_strong_value;
+    uint8_t aco_value;
+} cabc_data;
 
 struct dsi_panel_cmds gamma1;
 struct dsi_panel_cmds gamma2;
@@ -152,20 +164,13 @@ static bool flag_lcd_off = false;
 
 struct mdss_dsi_ctrl_pdata *panel_data;
 
+static int parse_dsi_cmds(struct dsi_panel_cmds *pcmds, const uint8_t *cmd, int blen);
+static void free_dsi_cmds(struct dsi_panel_cmds *pcmds);
 static void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 			struct dsi_panel_cmds *pcmds);
 
 
 extern int set_backlight_pwm_for_cabc(bool active);
-
-enum
-{
-    CABC_CLOSE = 0,
-    CABC_LOW_MODE,
-    CABC_MIDDLE_MODE,
-    CABC_HIGH_MODE,
-
-};
 
 static DEFINE_MUTEX(cabc_mutex);
 
@@ -322,6 +327,10 @@ static int mdss_dsi_update_cabc_level(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	int ret = 0;
 	struct mdss_panel_info *pinfo = NULL;
+	unsigned int len = 0, dlen = 0;
+	struct dsi_panel_cmds dsi_cmds;
+	uint8_t cabc_value = 0;
+	uint8_t *cmd_buf;
 
 	if (ctrl == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -330,44 +339,72 @@ static int mdss_dsi_update_cabc_level(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	pinfo = &ctrl->panel_data.panel_info;
 	if (!pinfo->cabc_available)
-		goto done;
+		return 0;
 
-	pr_info("%s: update cabc level=%d sre=%d\n", __func__,
-		pinfo->cabc_mode, pinfo->sre_enabled);
+	pr_info("%s: update cabc level=%d sre=%d aco = %d\n", __func__,
+		pinfo->cabc_mode, pinfo->sre_level, pinfo->aco_enabled);
 
-	if (pinfo->sre_available && pinfo->sre_enabled) {
-		mdss_dsi_panel_cmds_send(ctrl, &cabc_sre_sequence);
-		goto done;
-	}
+	if (pinfo->ce_available)
+		len += pinfo->ce_enabled ? cabc_data.ce_on_cmd_len : cabc_data.ce_off_cmd_len;
 
 	switch (pinfo->cabc_mode) {
-	case 0:
-            set_backlight_pwm_for_cabc(false);
-	    mdss_dsi_panel_cmds_send(ctrl, &cabc_off_sequence);
-	    break;
-	case 1:
-            set_backlight_pwm_for_cabc(true);
-	    mdss_dsi_panel_cmds_send(ctrl,
-				     &cabc_user_interface_image_sequence);
-	    break;
-	case 2:
-            set_backlight_pwm_for_cabc(true);
-	    mdss_dsi_panel_cmds_send(ctrl,
-				     &cabc_still_image_sequence);
-	    break;
-	case 3:
-            set_backlight_pwm_for_cabc(true);
-	    mdss_dsi_panel_cmds_send(ctrl,
-				     &cabc_video_image_sequence);
-	    break;
-	default:
-	    pr_err("%s: cabc level %d is not supported!\n", __func__,
-		   pinfo->cabc_mode);
-	    ret = -EINVAL;
-	    break;
+		case 1: cabc_value |= cabc_data.cabc_ui_value; break;
+		case 2: cabc_value |= cabc_data.cabc_image_value; break;
+		case 3: cabc_value |= cabc_data.cabc_video_value; break;
 	}
 
-done:
+	if (pinfo->sre_available) {
+		switch (pinfo->sre_level) {
+			case 1: cabc_value |= cabc_data.sre_weak_value; break;
+			case 2: cabc_value |= cabc_data.sre_medium_value; break;
+			case 3: cabc_value |= cabc_data.sre_strong_value; break;
+		}
+	}
+
+	if (pinfo->aco_available && pinfo->aco_enabled) {
+		cabc_value |= cabc_data.aco_value;
+	}
+
+	len += cabc_data.cmd_prefix_len + cabc_data.cmd_postfix_len;
+
+	if (len == 0)
+		return 0;
+
+	memset(&dsi_cmds, 0, sizeof(struct dsi_panel_cmds));
+	cmd_buf = kzalloc(len + 1, GFP_KERNEL);
+	if (!cmd_buf)
+		return -ENOMEM;
+
+	if (pinfo->ce_available) {
+		if (pinfo->ce_enabled) {
+			memcpy(cmd_buf + dlen, cabc_data.ce_on_cmd, cabc_data.ce_on_cmd_len);
+			dlen += cabc_data.ce_on_cmd_len;
+		} else {
+			memcpy(cmd_buf + dlen, cabc_data.ce_off_cmd, cabc_data.ce_off_cmd_len);
+			dlen += cabc_data.ce_off_cmd_len;
+		}
+	}
+
+	memcpy(cmd_buf + dlen, cabc_data.cmd_prefix, cabc_data.cmd_prefix_len);
+	dlen += cabc_data.cmd_prefix_len;
+	// The CABC command parameter is the last value in the sequence
+	cmd_buf[dlen - 1] = cabc_value;
+
+	memcpy(cmd_buf + dlen, cabc_data.cmd_postfix, cabc_data.cmd_postfix_len);
+	dlen += cabc_data.cmd_postfix_len;
+
+	// Parse the command and send it
+	ret = parse_dsi_cmds(&dsi_cmds, cmd_buf, dlen);
+	if (ret == 0) {
+		set_backlight_pwm_for_cabc(pinfo->cabc_mode != 0);
+		mdss_dsi_panel_cmds_send(ctrl, &dsi_cmds);
+		free_dsi_cmds(&dsi_cmds);
+	} else {
+		pr_err("%s: error parsing DSI command! ret=%d", __func__, ret);
+	}
+
+	kfree(cmd_buf);
+
 	return ret;
 }
 
@@ -406,7 +443,7 @@ int mdss_dsi_panel_set_cabc(struct mdss_panel_data *pdata, int level)
 	return ret;
 }
 
-int mdss_dsi_panel_set_sre(struct mdss_panel_data *pdata, bool enable)
+int mdss_dsi_panel_set_sre(struct mdss_panel_data *pdata, int level)
 {
 	int ret;
 	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
@@ -420,12 +457,77 @@ int mdss_dsi_panel_set_sre(struct mdss_panel_data *pdata, bool enable)
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
 	pinfo = &(ctrl->panel_data.panel_info);
 
-	if (!pinfo->cabc_available || !pinfo->sre_available ||
-		enable == pinfo->sre_enabled)
+	if (!pinfo->cabc_available || !pinfo->sre_available)
+		return 0;
+
+	if (level < 0 || level > 3)
+		return -EINVAL;
+
+	if (level == pinfo->sre_level)
 		return 0;
 
 	mutex_lock(&cabc_mutex);
-	pinfo->sre_enabled = enable;
+	pinfo->sre_level = level;
+
+	if (flag_lcd_off) {
+		pr_info("%s: lcd is off, queued cabc change\n", __func__);
+	} else {
+		ret = mdss_dsi_update_cabc_level(ctrl);
+	}
+
+	mutex_unlock(&cabc_mutex);
+	return ret;
+}
+
+int mdss_dsi_panel_set_aco(struct mdss_panel_data *pdata, bool enable)
+{
+	int ret;
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+	struct mdss_panel_info *pinfo = NULL;
+
+	if (pdata == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
+
+	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
+	pinfo = &(ctrl->panel_data.panel_info);
+
+	if (!pinfo->cabc_available || !pinfo->aco_available || enable == pinfo->aco_enabled)
+		return 0;
+
+	mutex_lock(&cabc_mutex);
+	pinfo->aco_enabled = enable;
+
+	if (flag_lcd_off) {
+		pr_info("%s: lcd is off, queued cabc change\n", __func__);
+	} else {
+		ret = mdss_dsi_update_cabc_level(ctrl);
+	}
+
+	mutex_unlock(&cabc_mutex);
+	return ret;
+}
+
+int mdss_dsi_panel_set_color_enhance(struct mdss_panel_data *pdata, bool enable)
+{
+	int ret;
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+	struct mdss_panel_info *pinfo = NULL;
+
+	if (pdata == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
+
+	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
+	pinfo = &(ctrl->panel_data.panel_info);
+
+	if (!pinfo->ce_available || enable == pinfo->ce_enabled)
+		return 0;
+
+	mutex_lock(&cabc_mutex);
+	pinfo->ce_enabled = enable;
 
 	if (flag_lcd_off) {
 		pr_info("%s: lcd is off, queued cabc change\n", __func__);
@@ -1099,37 +1201,28 @@ static void mdss_dsi_parse_trigger(struct device_node *np, char *trigger,
 	}
 }
 
-
-static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
-		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key)
+static int parse_dsi_cmds(struct dsi_panel_cmds *pcmds, const uint8_t *cmd, int blen)
 {
-	const char *data;
-	int blen = 0, len;
+	int len;
 	char *buf, *bp;
 	struct dsi_ctrl_hdr *dchdr;
 	int i, cnt;
 
-	data = of_get_property(np, cmd_key, &blen);
-	if (!data) {
-		pr_err("%s: failed, key=%s\n", __func__, cmd_key);
-		return -ENOMEM;
-	}
-
-	buf = kzalloc(sizeof(char) * blen, GFP_KERNEL);
+	buf = kzalloc(blen, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
 
-	memcpy(buf, data, blen);
+	memcpy(buf, cmd, blen);
 
 	/* scan dcs commands */
 	bp = buf;
 	len = blen;
 	cnt = 0;
-	while (len > sizeof(*dchdr)) {
+	while (len >= sizeof(*dchdr)) {
 		dchdr = (struct dsi_ctrl_hdr *)bp;
 		dchdr->dlen = ntohs(dchdr->dlen);
 		if (dchdr->dlen > len) {
-			pr_err("%s: dtsi cmd=%x error, len=%d",
+			pr_err("%s: dtsi cmd=%x error, len=%d\n",
 				__func__, dchdr->dtype, dchdr->dlen);
 			goto exit_free;
 		}
@@ -1141,13 +1234,13 @@ static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
 	}
 
 	if (len != 0) {
-		pr_err("%s: dcs_cmd=%x len=%d error!",
+		pr_err("%s: dcs_cmd=%x len=%d error!\n",
 				__func__, buf[0], blen);
 		goto exit_free;
 	}
 
 	pcmds->cmds = kzalloc(cnt * sizeof(struct dsi_cmd_desc),
-						GFP_KERNEL);
+			GFP_KERNEL);
 	if (!pcmds->cmds)
 		goto exit_free;
 
@@ -1167,6 +1260,42 @@ static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
 		len -= dchdr->dlen;
 	}
 
+	/*Set default link state to HS Mode*/
+	pcmds->link_state = DSI_HS_MODE;
+
+	pr_debug("%s: dcs_cmd=%x len=%d, cmd_cnt=%d link_state=%d\n", __func__,
+		pcmds->buf[0], pcmds->blen, pcmds->cmd_cnt, pcmds->link_state);
+
+	return 0;
+
+exit_free:
+	kfree(buf);
+	return -ENOMEM;
+}
+
+static void free_dsi_cmds(struct dsi_panel_cmds *pcmds)
+{
+	kfree(pcmds->buf);
+	kfree(pcmds->cmds);
+}
+
+static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
+		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key)
+{
+	const char *data;
+	int blen = 0;
+	int err;
+
+	data = of_get_property(np, cmd_key, &blen);
+	if (!data) {
+		pr_err("%s: failed, key=%s\n", __func__, cmd_key);
+		return -ENOMEM;
+	}
+
+	err = parse_dsi_cmds(pcmds, data, blen);
+	if (err < 0)
+		return err;
+
 	data = of_get_property(np, link_key, NULL);
 	if (data && !strcmp(data, "dsi_hs_mode"))
 		pcmds->link_state = DSI_HS_MODE;
@@ -1177,10 +1306,6 @@ static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
 		pcmds->buf[0], pcmds->blen, pcmds->cmd_cnt, pcmds->link_state);
 
 	return 0;
-
-exit_free:
-	kfree(buf);
-	return -ENOMEM;
 }
 
 
@@ -1617,20 +1742,42 @@ static int mdss_panel_parse_dt(struct device_node *np,
 
 #ifdef VENDOR_EDIT
 /* Xiaori.Yuan@Mobile Phone Software Dept.Driver, 2014/02/17  Add for set cabc */
-	rc = mdss_dsi_parse_dcs_cmds(np, &cabc_off_sequence,
-		"qcom,mdss-dsi-cabc-off-command", "qcom,mdss-dsi-off-command-state");
-	pinfo->cabc_available = !rc ? 1 : 0;
+	cabc_data.cmd_prefix = of_get_property(np,
+		"qcom,mdss-dsi-cabc-cmd", &cabc_data.cmd_prefix_len);
+	cabc_data.cmd_postfix = of_get_property(np,
+		"qcom,mdss-dsi-cabc-post-cmd", &cabc_data.cmd_postfix_len);
+	pinfo->cabc_available = cabc_data.cmd_prefix && cabc_data.cmd_postfix;
 
-	mdss_dsi_parse_dcs_cmds(np, &cabc_user_interface_image_sequence,
-		"qcom,mdss-dsi-cabc-ui-command", "qcom,mdss-dsi-off-command-state");
-	mdss_dsi_parse_dcs_cmds(np, &cabc_still_image_sequence,
-		"qcom,mdss-dsi-cabc-still-image-command", "qcom,mdss-dsi-off-command-state");
-	mdss_dsi_parse_dcs_cmds(np, &cabc_video_image_sequence,
-		"qcom,mdss-dsi-cabc-video-command", "qcom,mdss-dsi-off-command-state");
+	of_property_read_u32(np, "qcom,mdss-dsi-cabc-ui-value", &tmp);
+	cabc_data.cabc_ui_value = (uint8_t) (tmp & 0xff);
+	of_property_read_u32(np, "qcom,mdss-dsi-cabc-image-value", &tmp);
+	cabc_data.cabc_image_value = (uint8_t) (tmp & 0xff);
+	of_property_read_u32(np, "qcom,mdss-dsi-cabc-video-value", &tmp);
+	cabc_data.cabc_video_value = (uint8_t) (tmp & 0xff);
 
-	rc = mdss_dsi_parse_dcs_cmds(np, &cabc_sre_sequence,
-		"qcom,mdss-dsi-sre-ui-command", "qcom,mdss-dsi-off-command-state");
-	pinfo->sre_available = !rc ? 1 : 0;
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-sre-weak-value", &tmp);
+	if (rc == 0) {
+		cabc_data.sre_weak_value = (uint8_t) (tmp & 0xff);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-sre-medium-value", &tmp);
+	}
+	if (rc == 0) {
+		cabc_data.sre_medium_value = (uint8_t) (tmp & 0xff);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-sre-strong-value", &tmp);
+	}
+	if (rc == 0) {
+		cabc_data.sre_strong_value = (uint8_t) (tmp & 0xff);
+	}
+	pinfo->sre_available = rc == 0;
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-aco-value", &tmp);
+	cabc_data.aco_value = (uint8_t) (tmp & 0xff);
+	pinfo->aco_available = rc == 0;
+
+	cabc_data.ce_on_cmd = of_get_property(np,
+		"qcom,mdss-dsi-color-enhance-on", &cabc_data.ce_on_cmd_len);
+	cabc_data.ce_off_cmd = of_get_property(np,
+		"qcom,mdss-dsi-color-enhance-off", &cabc_data.ce_off_cmd_len);
+	pinfo->ce_available = cabc_data.ce_on_cmd && cabc_data.ce_off_cmd;
 
 	mdss_dsi_parse_dcs_cmds(np, &gamma1,
 		"qcom,mdss-dsi-gamma1", "qcom,mdss-dsi-off-command-state");

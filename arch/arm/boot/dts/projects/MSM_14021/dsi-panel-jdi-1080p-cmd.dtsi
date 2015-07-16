@@ -105,16 +105,23 @@
 		qcom,mdss-dsi-mdp-trigger = "trigger_sw";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 200>, <1 20>;
-		qcom,mdss-dsi-cabc-off-command = [15 01 00 00 10 00 02 55 00
-						  05 01 00 00 10 00 02 29 00];
-		qcom,mdss-dsi-cabc-ui-command = [15 01 00 00 10 00 02 55 01
-						 05 01 00 00 10 00 02 29 00];
-		qcom,mdss-dsi-cabc-still-image-command = [15 01 00 00 10 00 02 55 02
-							  05 01 00 00 10 00 02 29 00];
-		qcom,mdss-dsi-cabc-video-command = [15 01 00 00 10 00 02 55 03
-						    05 01 00 00 10 00 02 29 00];
-		qcom,mdss-dsi-sre-ui-command = [15 01 00 00 10 00 02 55 60
-						05 01 00 00 10 00 02 29 00];
+		qcom,mdss-dsi-cabc-cmd = [15 01 00 00 10 00 02 55 00];
+		qcom,mdss-dsi-cabc-ui-value = <0x01>;
+		qcom,mdss-dsi-cabc-image-value = <0x02>;
+		qcom,mdss-dsi-cabc-video-value = <0x03>;
+		qcom,mdss-dsi-sre-weak-value = <0x50>;
+		qcom,mdss-dsi-sre-medium-value = <0x60>;
+		qcom,mdss-dsi-sre-strong-value = <0x70>;
+		qcom,mdss-dsi-aco-value = <0x80>;
+		qcom,mdss-dsi-cabc-post-cmd = [05 01 00 00 10 00 02 29 00];
+		qcom,mdss-dsi-color-enhance-on = [23 01 00 00 01 00 02 b0 04
+			29 01 00 00 10 00 21 ca 01
+			02 9a a4 b8 b4 b0 a4 08 28 05 87 b0 50 01 ff 05 f8 0c 0c 50 40 13 13 f0 08 10 10 3f 3f 3f 3f
+			23 01 00 00 01 00 02 b0 03];
+		qcom,mdss-dsi-color-enhance-off = [23 01 00 00 01 00 02 b0 04
+			29 01 00 00 10 00 21 ca 00
+			80 80 80 80 80 80 80 08 20 80 80 0a 4a 37 a0 55 f8 0c 0c 20 10 3f 3f 00 00 10 10 3f 3f 3f 3f
+			23 01 00 00 01 00 02 b0 03];
 		qcom,mdss-dsi-gamma1 = [23 01 00 00 01 00 02 b0 04
 								29 01 00 00 01 00 14 c8 01 0A FD 03 01 E8 00 00 03 FC F5 A1 00 00 01 FD 06 FC 00
 								23 01 00 00 00 00 02 d6 01

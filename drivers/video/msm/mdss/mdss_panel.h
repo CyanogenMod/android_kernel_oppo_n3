@@ -310,10 +310,15 @@ struct mdss_panel_info {
 
 	uint32_t panel_dead;
 
-	int cabc_available;
+	bool cabc_available;
+	bool sre_available;
+	bool aco_available;
+	bool ce_available;
+
 	int cabc_mode;
-	int sre_available;
-	bool sre_enabled;
+	int sre_level;
+	bool aco_enabled;
+	bool ce_enabled;
 
 	struct lcd_panel_info lcdc;
 	struct fbc_panel_info fbc;
@@ -452,7 +457,8 @@ bool mdss_is_ready(void);
 int mdss_dsi_panel_set_cabc(struct mdss_panel_data *panel_data, int level);
 int mdss_dsi_panel_set_gamma_index(struct mdss_panel_data *panel_data,
 				   int index);
-int mdss_dsi_panel_set_sre(struct mdss_panel_data *panel_data, bool enable);
+int mdss_dsi_panel_set_sre(struct mdss_panel_data *panel_data, int level);
+int mdss_dsi_panel_set_aco(struct mdss_panel_data *panel_data, bool enable);
 int mdss_dsi_panel_set_color_enhance(struct mdss_panel_data *panel_data,
 				     bool enable);
 #endif /* MDSS_PANEL_H */
