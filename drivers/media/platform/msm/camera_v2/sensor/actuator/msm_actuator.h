@@ -18,18 +18,21 @@
 #include <media/v4l2-subdev.h>
 #include <media/msmb_camera.h>
 #include "msm_camera_i2c.h"
+#include "msm_camera_dt_util.h"
+#include "msm_camera_io_util.h"
+
 
 #define DEFINE_MSM_MUTEX(mutexname) \
 	static struct mutex mutexname = __MUTEX_INITIALIZER(mutexname)
 
+#define	MSM_ACTUATOT_MAX_VREGS (10)
+
 struct msm_actuator_ctrl_t;
-#ifdef VENDOR_EDIT
-/*shijie.zhuo,2014/09/10,Add for close camera click*/
+
 enum msm_actuator_state_t {
-    ACTUATOR_POWER_UP,
-    ACTUATOR_POWER_DOWN,
+	ACTUATOR_POWER_DOWN,
+	ACTUATOR_POWER_UP,
 };
-#endif
 
 struct msm_actuator_func_tbl {
 	int32_t (*actuator_i2c_write_b_af)(struct msm_actuator_ctrl_t *,
@@ -57,6 +60,12 @@ struct msm_actuator_func_tbl {
 struct msm_actuator {
 	enum actuator_type act_type;
 	struct msm_actuator_func_tbl func_tbl;
+};
+
+struct msm_actuator_vreg {
+	struct camera_vreg_t *cam_vreg;
+	void *data[MSM_ACTUATOT_MAX_VREGS];
+	int num_vreg;
 };
 
 struct msm_actuator_ctrl_t {
@@ -90,11 +99,13 @@ struct msm_actuator_ctrl_t {
 	uint16_t i2c_tbl_index;
 	enum cci_i2c_master_t cci_master;
 	uint32_t subdev_id;
+	struct msm_actuator_vreg vreg_cfg;
 #ifdef VENDOR_EDIT
 /*shijie.zhuo,2014/09/10,Add for close camera click*/
     uint16_t current_lens_pos;
-    enum msm_actuator_state_t actuator_state;
+    uint32_t hw_params;
 #endif
+	enum msm_actuator_state_t actuator_state;
 };
 
 #endif
