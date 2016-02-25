@@ -63,8 +63,6 @@ extern int lcd_closebl_flag;
 #endif
 /* OPPO 2015-05-22 Goushengjun Add end */ 
 
-#include "mdss_livedisplay.h"
-
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
 #else
@@ -628,12 +626,7 @@ static int mdss_fb_create_sysfs(struct msm_fb_data_type *mfd)
 
 	rc = sysfs_create_group(&mfd->fbi->dev->kobj, &mdss_fb_attr_group);
 	if (rc)
-		goto sysfs_err;
-
-	return mdss_livedisplay_create_sysfs(mfd);
-
-sysfs_err:
-	pr_err("%s: sysfs group creation failed, rc=%d\n", __func__, rc);
+		pr_err("sysfs group creation failed, rc=%d\n", rc);
 	return rc;
 }
 
